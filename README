@@ -36,26 +36,28 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 Introduction
 ------------
 
-JTAG (IEEE 1149.1, [1]) is a standard IC debugging, programming and
-boundary scan [2] port.
+JTAG (IEEE 1149.1, aka "Boundary Scan", [1], [2]) is a standard IC
+testing, debugging and programming port.
 
-SVF (Serial Vector Format, [3][4]) is a file format for storing the
-patterns that should be sent to the JTAG interface as well as the
+SVF (Serial Vector Format, [3], [4]) is a file format for storing the
+patterns that should be sent to the JTAG interface, as well as the
 expected response. It is used as an exchange format between programms
-that generate the JTAG input/output patterns and devices that
-can physically talk to the JTAG interface.
+that generate the JTAG input/output patterns and devices that can
+physically talk to a JTAG interface.
 
-XSVF (Xilinx Serial Vector Format, [5]) is a binary variant of the
-SVF file format, optimized but not limited to programming Xilinx 
-FPGA and CPLD devices.
+XSVF (Xilinx Serial Vector Format, [5]) is a binary variant of the SVF
+file format, optimized but not limited to programming Xilinx FPGA and
+CPLD devices.
 
 Often one wants to use an embedded host processor or microcontroller
 to access the JTAG interface on an embedded device instead of using
-an external JTAG probe. This library can be used to implement such
-a solution.
+an external JTAG probe. This library can be used to implement such a
+solution.
+
+Lib(X)SVF is free software licensed under the BSD license.
 
 [1] http://en.wikipedia.org/wiki/JTAG
-[2] http://en.wikipedia.org/wiki/Boundary_scan
+[2] http://www.fpga4fun.com/JTAG.html
 [3] http://en.wikipedia.org/wiki/Serial_Vector_Format
 [4] http://www.asset-intertech.com/support/svf.pdf
 [5] http://www.xilinx.com/bvdocs/appnotes/xapp503.pdf
