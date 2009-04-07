@@ -1,5 +1,5 @@
 /*
- *  Generic JTAG (X)SVF player library
+ *  Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
  *
  *  Copyright (C) 2009  RIEGL Research ForschungsGmbH
  *  Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>
@@ -147,6 +147,7 @@ struct bitdata_s {
 	unsigned char *tdi_mask;
 	unsigned char *tdo_data;
 	unsigned char *tdo_mask;
+	unsigned char *ret_mask;
 };
 
 static void bitdata_free(struct libxsvf_host *h, struct bitdata_s *bd)
@@ -155,11 +156,13 @@ static void bitdata_free(struct libxsvf_host *h, struct bitdata_s *bd)
 	h->realloc(h, bd->tdi_mask, 0);
 	h->realloc(h, bd->tdo_data, 0);
 	h->realloc(h, bd->tdo_mask, 0);
+	h->realloc(h, bd->ret_mask, 0);
 
 	bd->tdi_data = (void*)0;
 	bd->tdi_mask = (void*)0;
 	bd->tdo_data = (void*)0;
 	bd->tdo_mask = (void*)0;
+	bd->ret_mask = (void*)0;
 }
 
 static int hex(char ch)
@@ -204,6 +207,10 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 		if (!strtokencmp(p, "MASK")) {
 			p += strtokenskip(p);
 			dp = &bd->tdo_mask;
+		}
+		if (!strtokencmp(p, "RMASK")) {
+			p += strtokenskip(p);
+			dp = &bd->ret_mask;
 		}
 		if (!dp)
 			return (void*)0;
@@ -299,11 +306,15 @@ static int bitdata_play(struct libxsvf_host *h, int first, struct bitdata_s *bd,
 				h->set_tdi(h, getbit(bd->tdi_data, i));
 		}
 		h->pulse_tck(h);
-		if (bd->tdo_data) {
-			if (!bd->tdo_mask || getbit(bd->tdo_mask, i)) {
+		if (bd->tdo_data || bd->ret_mask) {
+			int tdo_mask_bit = !bd->tdo_mask || getbit(bd->tdo_mask, i);
+			int ret_mask_bit = bd->ret_mask && getbit(bd->ret_mask, i);
+			if (tdo_mask_bit || ret_mask_bit) {
 				int tdo = h->get_tdo(h);
-				if (tdo >= 0 && tdo != getbit(bd->tdo_data, i))
+				if (tdo_mask_bit && tdo >= 0 && tdo != getbit(bd->tdo_data, i))
 					tdo_error = 1;
+				if (ret_mask_bit && h->ret_tdo)
+					h->ret_tdo(h, tdo);
 			}
 		}
 	}
@@ -324,12 +335,12 @@ int libxsvf_svf(struct libxsvf_host *h)
 	int command_buffer_len = 0;
 	int rc;
 
-	struct bitdata_s bd_hdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0 };
-	struct bitdata_s bd_hir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0 };
-	struct bitdata_s bd_tdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0 };
-	struct bitdata_s bd_tir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0 };
-	struct bitdata_s bd_sdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0 };
-	struct bitdata_s bd_sir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0 };
+	struct bitdata_s bd_hdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
+	struct bitdata_s bd_hir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
+	struct bitdata_s bd_tdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
+	struct bitdata_s bd_tir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
+	struct bitdata_s bd_sdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
+	struct bitdata_s bd_sir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
 
 	int state_endir = LIBXSVF_TAP_IDLE;
 	int state_enddr = LIBXSVF_TAP_IDLE;

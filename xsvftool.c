@@ -1,5 +1,5 @@
 /*
- *  Generic JTAG (X)SVF player library
+ *  Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
  *
  *  Copyright (C) 2009  RIEGL Research ForschungsGmbH
  *  Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>
@@ -184,6 +184,8 @@ static int io_tdo()
 struct udata_s {
 	FILE *f;
 	int verbose;
+	int retval_i;
+	int retval[256];
 };
 
 static void h_udelay(struct libxsvf_host *h, long usecs)
@@ -259,6 +261,16 @@ static int h_get_tdo(struct libxsvf_host *h)
 	return v;
 }
 
+static void h_ret_tdo(struct libxsvf_host *h, int v)
+{
+	struct udata_s *u = h->user_data;
+	if (u->verbose >= 3) {
+		fprintf(stderr, "[RET:%d]\n", v);
+	}
+	if (u->retval_i < 256)
+		u->retval[u->retval_i++] = v;
+}
+
 static void h_report_tapstate(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
@@ -296,6 +308,7 @@ static struct libxsvf_host h = {
 	.pulse_sck = h_pulse_sck,
 	.set_trst = h_set_trst,
 	.get_tdo = h_get_tdo,
+	.ret_tdo = h_ret_tdo,
 	.report_tapstate = h_report_tapstate,
 	.report_status = h_report_status,
 	.report_error = h_report_error,
@@ -331,7 +344,10 @@ int main(int argc, char **argv)
 				io_setup();
 				gotfiles = 1;
 			}
-			u.f = fopen(optarg, "rb");
+			if (!strcmp(optarg, "-"))
+				u.f = stdin;
+			else
+				u.f = fopen(optarg, "rb");
 			if (u.f == NULL) {
 				fprintf(stderr, "Can't open %s file `%s': %s\n", opt == 's' ? "SVF" : "XSVF", optarg, strerror(errno));
 				rc = 1;
@@ -341,7 +357,8 @@ int main(int argc, char **argv)
 				fprintf(stderr, "Error while playing %s file `%s'.\n", opt == 's' ? "SVF" : "XSVF", optarg);
 				rc = 1;
 			}
-			fclose(u.f);
+			if (strcmp(optarg, "-"))
+				fclose(u.f);
 			break;
 		default:
 			help();
@@ -351,6 +368,13 @@ int main(int argc, char **argv)
 
 	if (!gotfiles)
 		help();
+
+	if (u.retval_i) {
+		printf("%d rmask bits:", u.retval_i);
+		for (int i=0; i < u.retval_i; i++)
+			printf(" %d", u.retval[i]);
+		printf("\n");
+	}
 
 	io_shutdown();
 	return rc;

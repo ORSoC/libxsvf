@@ -1,5 +1,5 @@
 /*
- *  Generic JTAG (X)SVF player library
+ *  Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
  *
  *  Copyright (C) 2009  RIEGL Research ForschungsGmbH
  *  Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>
@@ -64,6 +64,7 @@ struct libxsvf_host {
 	void (*pulse_sck)(struct libxsvf_host *h);
 	void (*set_trst)(struct libxsvf_host *h, int v);
 	int (*get_tdo)(struct libxsvf_host *h);
+	void (*ret_tdo)(struct libxsvf_host *h, int v);
 	void (*report_tapstate)(struct libxsvf_host *h);
 	void (*report_status)(struct libxsvf_host *h, const char *message);
 	void (*report_error)(struct libxsvf_host *h, const char *file, int line, const char *message);

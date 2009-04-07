@@ -1,5 +1,5 @@
 /*
- *  Generic JTAG (X)SVF player library
+ *  Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
  *
  *  Copyright (C) 2009  RIEGL Research ForschungsGmbH
  *  Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>

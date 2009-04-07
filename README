@@ -1,9 +1,11 @@
 
-Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG Players
+Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
 ******************************************************************
 
 Please check the subversion repository for updates:
 http://svn.clifford.at/libxsvf/trunk/
+
+Please send bug reports and fixes to <clifford@clifford.at>.
 
 
 Copyright and Disclaimer
@@ -59,6 +61,27 @@ a solution.
 [5] http://www.xilinx.com/bvdocs/appnotes/xapp503.pdf
 
 
+Limitations and non-standard extensions
+---------------------------------------
+
+The SVF commands 'FREQUENCY', 'PIO' and 'PIOMAP' are unsupported. Any
+use of this commands in an SVF input file is reported as error.
+
+The SVF 'RUNTEST' command is implemented in a limited manner: The
+'MAXIMUM' time parameter is ignored. Combining 'TCK' or 'SCK' with
+a time parameter results in first executing the specified number of
+clock pulses followed by a delay of the specified timespan, instead
+of performing the clock cycles and the delay in parallel.
+
+The SVF commands 'HDR', 'HIR', 'SDR', 'SIR', 'TDR' and 'TIR' support
+an additional non-standard 'RMASK' parameter. This is a mask for the
+TDO bits, simmilar to the standard 'MASK' parameter. All TDO bits
+marked using a '1' in 'RMASK' are reported back to the host application
+using the the ret_tdo() callback function. This can be used to read
+data (such as device serial numbers) using JTAG by providing SVF
+templates.
+
+
 Using and Porting
 -----------------
 
@@ -110,7 +133,7 @@ be set to implementations of the following functions:
 	This function is optional and the function pointer may
 	be set to a NULL pointer on implementations without an
 	SCK line. In this cases an SVF 'RUNTEST n SCK' command
-	would have no effect.
+	has no effect.
 
   void set_trst(struct libxsvf_host *h, int v);
 
@@ -120,6 +143,11 @@ be set to implementations of the following functions:
 		 0 ... drive the line low
 		-1 ... do not drive the line (high impedance)
 		-2 ... got SVF 'TRST ABSENT' command
+
+	This function is optional and the function pointer may
+	be set to a NULL pointer on implementations without an
+	TRST line. In this cases an SVF 'TRST' command has no
+	effect.
 
   int get_tdo(struct libxsvf_host *h);
 
@@ -133,6 +161,13 @@ be set to implementations of the following functions:
 	A return code of -1 can be used to signal that the state
 	of the TDO line is unkown and should be ignored. (I.e.
 	no 'TDO mismatch' error should be generated.)
+
+  void ret_tdo(struct libxsvf_host *h, int v);
+
+	This function is called for every TDO bit that is marked
+	using an RMASK to be returned to the host environment.
+
+	This function pointer is optional (may be set to NULL).
 
   void report_tapstate(struct libxsvf_host *h);
 
