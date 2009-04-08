@@ -59,7 +59,7 @@ struct libxsvf_host {
 	void (*setup)(struct libxsvf_host *h);
 	void (*shutdown)(struct libxsvf_host *h);
 	void (*udelay)(struct libxsvf_host *h, long usecs);
-	int (*read_next_byte)(struct libxsvf_host *h);
+	int (*getbyte)(struct libxsvf_host *h);
 	void (*set_tms)(struct libxsvf_host *h, int v);
 	void (*set_tdi)(struct libxsvf_host *h, int v);
 	void (*pulse_tck)(struct libxsvf_host *h);
@@ -82,6 +82,23 @@ const char *libxsvf_state2str(enum libxsvf_tap_state tap_state);
 int libxsvf_svf(struct libxsvf_host *h);
 int libxsvf_xsvf(struct libxsvf_host *h);
 int libxsvf_tap_walk(struct libxsvf_host *, enum libxsvf_tap_state);
+
+/* Host accessor macros (see README) */
+#define LIBXSVF_HOST_SETUP() h->setup(h)
+#define LIBXSVF_HOST_SHUTDOWN() h->shutdown(h)
+#define LIBXSVF_HOST_UDELAY(_usecs) h->udelay(h, _usecs)
+#define LIBXSVF_HOST_GETBYTE() h->getbyte(h)
+#define LIBXSVF_HOST_SET_TMS(_v) h->set_tms(h, _v)
+#define LIBXSVF_HOST_SET_TDI(_v) h->set_tdi(h, _v)
+#define LIBXSVF_HOST_PULSE_TCK() h->pulse_tck(h)
+#define LIBXSVF_HOST_PULSE_SCK() do { if (h->pulse_sck) h->pulse_sck(h); } while (0)
+#define LIBXSVF_HOST_SET_TRST(_v) do { if (h->set_trst) h->set_trst(h, _v); } while (0)
+#define LIBXSVF_HOST_GET_TDO() h->get_tdo(h)
+#define LIBXSVF_HOST_RET_TDO(_v) do { if (h->ret_tdo) h->ret_tdo(h, _v); } while (0)
+#define LIBXSVF_HOST_REPORT_TAPSTATE() do { if (h->report_tapstate) h->report_tapstate(h); } while (0)
+#define LIBXSVF_HOST_REPORT_STATUS(_msg) do { if (h->report_status) h->report_status(h, _msg); } while (0)
+#define LIBXSVF_HOST_REPORT_ERROR(_msg) h->report_error(h, __FILE__, __LINE__, _msg)
+#define LIBXSVF_HOST_REALLOC(_ptr, _size) h->realloc(h, _ptr, _size)
 
 #endif
 

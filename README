@@ -103,6 +103,9 @@ fixes in the code.
 The program 'xsvftool' (see xsvftool.c) is a good example of how to
 use the library. Please have a look at this program first.
 
+Note: See 'Host accessor macros' below for an alternative way of
+integrating libxsvf into your host environment.
+
 The host application must provide an libxsvf_host struct as defined
 in libxsvf.h. This struct contains some function pointers that must
 be set to implementations of the following functions:
@@ -124,7 +127,7 @@ be set to implementations of the following functions:
 	A function that delay execution for at least the specified
 	number of microseconds.
 
-  int read_next_byte(struct libxsvf_host *h);
+  int getbyte(struct libxsvf_host *h);
 
 	A function that returns the next byte from the input file
 	or -1 on end of file.
@@ -233,4 +236,36 @@ Example given:
 The libxsvf_host struct is passed back to all callback functions
 and the 'user_data' member (a void pointer) can be used to pass
 additional data (such as a file handle) to the callbacks.
+
+
+Host accessor macros
+--------------------
+
+Despite its great flexibility, APIs based on callback functions
+as the one used by libxsvf are unusual in the embedded community.
+Basically because they introduce a slight overhead in the memory
+footprint.
+
+For those who prefer a more direct integration with their host
+environments libxsvf also provides 'host accessor macros' in the
+libxsvf.h header file. Simply remove the callback functions from
+the libxsvf_host struct and modify the LIBXSVF_HOST_ macros
+to fit your needs.
+
+
+Stripping down libxsvf
+----------------------
+
+It is possible to disable SVF or XSVF support by setting the
+LIBXSVF_WITHOUT_SVF or LIBXSVF_WITHOUT_XSVF define. In this cases
+one would not want to link against svf.o or xsvf.o.
+
+One does not need to link agains state.o if the libxsvf_state2str()
+function is not needed. Usually this function is only used for
+debugging purposes.
+
+It is possible to modify the LIBXSVF_HOST_REPORT_STATUS() and
+LIBXSVF_HOST_REPORT_ERROR() macros in libxsvf.h to be empty
+instructions. This drastically reduces the number of string
+constants in the code.
 

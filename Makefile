@@ -27,7 +27,7 @@
 CFLAGS += -Wall -Os -ggdb -std=gnu99 -MD
 #CFLAGS += -Wextra -Wno-unused-parameter -Werror
 
-xsvftool: tap.o svf.o xsvf.o play.o xsvftool.o
+xsvftool: tap.o state.o svf.o xsvf.o play.o xsvftool.o
 
 clean:
 	rm -f xsvftool *.o *.d

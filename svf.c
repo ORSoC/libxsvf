@@ -37,22 +37,22 @@ static int read_command(struct libxsvf_host *h, char **buffer_p, int *len_p)
 	{
 		if (len < p+10) {
 			len = len < 64 ? 96 : len*2;
-			buffer = h->realloc(h, buffer, len);
+			buffer = LIBXSVF_HOST_REALLOC(buffer, len);
 			*buffer_p = buffer;
 			*len_p = len;
 			if (!buffer) {
-				h->report_error(h, __FILE__, __LINE__, "Allocating memory failed.");
+				LIBXSVF_HOST_REPORT_ERROR("Allocating memory failed.");
 				return -1;
 			}
 		}
 		buffer[p] = 0;
 
-		int ch = h->read_next_byte(h);
+		int ch = LIBXSVF_HOST_GETBYTE();
 		if (ch < 0) {
 handle_eof:
 			if (p == 0)
 				return 0;
-			h->report_error(h, __FILE__, __LINE__, "Unexpected EOF.");
+			LIBXSVF_HOST_REPORT_ERROR("Unexpected EOF.");
 			return -1;
 		}
 		if (ch <= ' ') {
@@ -64,7 +64,7 @@ insert_eol:
 		if (ch == '!') {
 skip_to_eol:
 			while (1) {
-				ch = h->read_next_byte(h);
+				ch = LIBXSVF_HOST_GETBYTE();
 				if (ch < 0)
 					goto handle_eof;
 				if (ch < ' ' && ch != '\t')
@@ -152,11 +152,11 @@ struct bitdata_s {
 
 static void bitdata_free(struct libxsvf_host *h, struct bitdata_s *bd)
 {
-	h->realloc(h, bd->tdi_data, 0);
-	h->realloc(h, bd->tdi_mask, 0);
-	h->realloc(h, bd->tdo_data, 0);
-	h->realloc(h, bd->tdo_mask, 0);
-	h->realloc(h, bd->ret_mask, 0);
+	LIBXSVF_HOST_REALLOC(bd->tdi_data, 0);
+	LIBXSVF_HOST_REALLOC(bd->tdi_mask, 0);
+	LIBXSVF_HOST_REALLOC(bd->tdo_data, 0);
+	LIBXSVF_HOST_REALLOC(bd->tdo_mask, 0);
+	LIBXSVF_HOST_REALLOC(bd->ret_mask, 0);
 
 	bd->tdi_data = (void*)0;
 	bd->tdi_mask = (void*)0;
@@ -215,10 +215,10 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 		if (!dp)
 			return (void*)0;
 		if (*dp == (void*)0) {
-			*dp = h->realloc(h, *dp, bd->alloced_bytes);
+			*dp = LIBXSVF_HOST_REALLOC(*dp, bd->alloced_bytes);
 		}
 		if (*dp == (void*)0) {
-			h->report_error(h, __FILE__, __LINE__, "Allocating memory failed.");
+			LIBXSVF_HOST_REPORT_ERROR("Allocating memory failed.");
 			return (void*)0;
 		}
 
@@ -293,39 +293,39 @@ static int bitdata_play(struct libxsvf_host *h, int first, struct bitdata_s *bd,
 	int call_report_state = 0;
 
 	if (first)
-		h->set_tms(h, 0);
+		LIBXSVF_HOST_SET_TMS(0);
 
 	for (int i=bd->len+left_padding-1; i >= left_padding; i--) {
 		if (i == left_padding && h->tap_state != estate) {
-			h->set_tms(h, 1);
+			LIBXSVF_HOST_SET_TMS(1);
 			h->tap_state++;
 			call_report_state = 1;
 		}
 		if (bd->tdi_data) {
 			if (!bd->tdi_mask || getbit(bd->tdi_mask, i))
-				h->set_tdi(h, getbit(bd->tdi_data, i));
+				LIBXSVF_HOST_SET_TDI(getbit(bd->tdi_data, i));
 		}
-		h->pulse_tck(h);
+		LIBXSVF_HOST_PULSE_TCK();
 		if (bd->tdo_data || bd->ret_mask) {
 			int tdo_mask_bit = !bd->tdo_mask || getbit(bd->tdo_mask, i);
 			int ret_mask_bit = bd->ret_mask && getbit(bd->ret_mask, i);
 			if (tdo_mask_bit || ret_mask_bit) {
-				int tdo = h->get_tdo(h);
+				int tdo = LIBXSVF_HOST_GET_TDO();
 				if (tdo_mask_bit && tdo >= 0 && tdo != getbit(bd->tdo_data, i))
 					tdo_error = 1;
-				if (ret_mask_bit && h->ret_tdo)
-					h->ret_tdo(h, tdo);
+				if (ret_mask_bit)
+					LIBXSVF_HOST_RET_TDO(tdo);
 			}
 		}
 	}
 
-	if (call_report_state && h->report_tapstate)
-		h->report_tapstate(h);
+	if (call_report_state)
+		LIBXSVF_HOST_REPORT_TAPSTATE();
 
 	if (!tdo_error)
 		return 0;
 
-	h->report_error(h, __FILE__, __LINE__, "TDO mismatch.");
+	LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
 	return -1;
 }
 
@@ -356,8 +356,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		const char *p = command_buffer;
 
-		if (h->report_status)
-			h->report_status(h, command_buffer);
+		LIBXSVF_HOST_REPORT_STATUS(command_buffer);
 
 		if (!strtokencmp(p, "ENDIR")) {
 			p += strtokenskip(p);
@@ -460,22 +459,21 @@ int libxsvf_svf(struct libxsvf_host *h)
 			if (libxsvf_tap_walk(h, state_run) < 0)
 				goto error;
 			if (max_time >= 0) {
-				h->report_error(h, __FILE__, __LINE__, "WARNING: Maximum time in SVF RUNTEST command is ignored.");
+				LIBXSVF_HOST_REPORT_ERROR("WARNING: Maximum time in SVF RUNTEST command is ignored.");
 			}
 			if (tck_count >= 0) {
-				h->set_tms(h, 0);
+				LIBXSVF_HOST_SET_TMS(0);
 				for (int i=0; i < tck_count; i++) {
-					h->pulse_tck(h);
+					LIBXSVF_HOST_PULSE_TCK();
 				}
 			}
 			if (sck_count >= 0) {
 				for (int i=0; i < sck_count; i++) {
-					if (h->pulse_sck)
-						h->pulse_sck(h);
+					LIBXSVF_HOST_PULSE_SCK();
 				}
 			}
 			if (min_time >= 0) {
-				h->udelay(h, min_time * 1000000);
+				LIBXSVF_HOST_UDELAY(min_time * 1000000);
 			}
 			goto eol_check;
 		}
@@ -549,26 +547,22 @@ int libxsvf_svf(struct libxsvf_host *h)
 			p += strtokenskip(p);
 			if (!strtokencmp(p, "ON")) {
 				p += strtokenskip(p);
-				if (h->set_trst)
-					h->set_trst(h, 1);
+				LIBXSVF_HOST_SET_TRST(1);
 				goto eol_check;
 			}
 			if (!strtokencmp(p, "OFF")) {
 				p += strtokenskip(p);
-				if (h->set_trst)
-					h->set_trst(h, 0);
+				LIBXSVF_HOST_SET_TRST(0);
 				goto eol_check;
 			}
 			if (!strtokencmp(p, "Z")) {
 				p += strtokenskip(p);
-				if (h->set_trst)
-					h->set_trst(h, -1);
+				LIBXSVF_HOST_SET_TRST(-1);
 				goto eol_check;
 			}
 			if (!strtokencmp(p, "ABSENT")) {
 				p += strtokenskip(p);
-				if (h->set_trst)
-					h->set_trst(h, -2);
+				LIBXSVF_HOST_SET_TRST(-2);
 				goto eol_check;
 			}
 			goto syntax_error;
@@ -581,12 +575,12 @@ eol_check:
 			continue;
 
 syntax_error:
-		h->report_error(h, __FILE__, __LINE__, "SVF Syntax Error:");
+		LIBXSVF_HOST_REPORT_ERROR("SVF Syntax Error:");
 		if (0) {
 unsupported_error:
-			h->report_error(h, __FILE__, __LINE__, "Error in SVF input: unsupported command:");
+			LIBXSVF_HOST_REPORT_ERROR("Error in SVF input: unsupported command:");
 		}
-		h->report_error(h, __FILE__, __LINE__, command_buffer);
+		LIBXSVF_HOST_REPORT_ERROR(command_buffer);
 error:
 		rc = -1;
 		break;
@@ -599,7 +593,7 @@ error:
 	bitdata_free(h, &bd_sdr);
 	bitdata_free(h, &bd_sir);
 
-	h->realloc(h, command_buffer, 0);
+	LIBXSVF_HOST_REALLOC(command_buffer, 0);
 
 	return rc;
 }

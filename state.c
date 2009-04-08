@@ -26,32 +26,27 @@
 
 #include "libxsvf.h"
 
-int libxsvf_play(struct libxsvf_host *h, enum libxsvf_mode mode)
+const char *libxsvf_state2str(enum libxsvf_tap_state tap_state)
 {
-	int rc = -1;
-
-	h->tap_state = LIBXSVF_TAP_INIT;
-	LIBXSVF_HOST_SETUP();
-
-	if (mode == LIBXSVF_MODE_SVF) {
-#ifdef LIBXSVF_WITHOUT_SVF
-		LIBXSVF_HOST_REPORT_ERROR("SVF support in libxsvf is disabled.");
-#else
-		rc = libxsvf_svf(h);
-#endif
-	}
-
-	if (mode == LIBXSVF_MODE_XSVF) {
-#ifdef LIBXSVF_WITHOUT_XSVF
-		LIBXSVF_HOST_REPORT_ERROR("XSVF support in libxsvf is disabled.");
-#else
-		rc = libxsvf_xsvf(h);
-#endif
-	}
-
-	libxsvf_tap_walk(h, LIBXSVF_TAP_RESET);
-	LIBXSVF_HOST_SHUTDOWN();
-
-	return rc;
+#define X(_s) if (tap_state == _s) return #_s;
+	X(LIBXSVF_TAP_INIT)
+	X(LIBXSVF_TAP_RESET)
+	X(LIBXSVF_TAP_IDLE)
+	X(LIBXSVF_TAP_DRSELECT)
+	X(LIBXSVF_TAP_DRCAPTURE)
+	X(LIBXSVF_TAP_DRSHIFT)
+	X(LIBXSVF_TAP_DREXIT1)
+	X(LIBXSVF_TAP_DRPAUSE)
+	X(LIBXSVF_TAP_DREXIT2)
+	X(LIBXSVF_TAP_DRUPDATE)
+	X(LIBXSVF_TAP_IRSELECT)
+	X(LIBXSVF_TAP_IRCAPTURE)
+	X(LIBXSVF_TAP_IRSHIFT)
+	X(LIBXSVF_TAP_IREXIT1)
+	X(LIBXSVF_TAP_IRPAUSE)
+	X(LIBXSVF_TAP_IREXIT2)
+	X(LIBXSVF_TAP_IRUPDATE)
+#undef X
+	return "UNKOWN_STATE";
 }
 

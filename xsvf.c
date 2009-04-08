@@ -59,9 +59,9 @@ enum xsvf_cmd {
 #define READ_BITS(_buf, _len) do {                                          \
 	unsigned char *_p = _buf;                                           \
 	for (int _i=0; _i<(_len); _i+=8) {                                  \
-		int tmp = h->read_next_byte(h);                             \
+		int tmp = LIBXSVF_HOST_GETBYTE();                           \
 		if (tmp < 0) {                                              \
-			h->report_error(h, __FILE__, __LINE__, "Unexpected EOF."); \
+			LIBXSVF_HOST_REPORT_ERROR("Unexpected EOF.");       \
 			goto error;                                         \
 		}                                                           \
 		*(_p++) = tmp;                                              \
@@ -71,9 +71,9 @@ enum xsvf_cmd {
 #define READ_LONG() VAL_OPEN{                                               \
 	long _buf = 0;                                                      \
 	for (int _i=0; _i<4; _i++) {                                        \
-		int tmp = h->read_next_byte(h);                             \
+		int tmp = LIBXSVF_HOST_GETBYTE();                           \
 		if (tmp < 0) {                                              \
-			h->report_error(h, __FILE__, __LINE__, "Unexpected EOF."); \
+			LIBXSVF_HOST_REPORT_ERROR("Unexpected EOF.");       \
 			goto error;                                         \
 		}                                                           \
 		_buf = _buf << 8 | tmp;                                     \
@@ -82,9 +82,9 @@ enum xsvf_cmd {
 }VAL_CLOSE
 
 #define READ_BYTE() VAL_OPEN{                                               \
-	int _tmp = h->read_next_byte(h);                                    \
+	int _tmp = LIBXSVF_HOST_GETBYTE();                                  \
 	if (_tmp < 0) {                                                     \
-		h->report_error(h, __FILE__, __LINE__, "Unexpected EOF.");  \
+		LIBXSVF_HOST_REPORT_ERROR("Unexpected EOF.");               \
 		goto error;                                                 \
 	}                                                                   \
 	_tmp;                                                               \
@@ -187,31 +187,31 @@ static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char 
 		int call_report_state = 0;
 
 		TAP(state);
-		h->set_tms(h, 0);
+		LIBXSVF_HOST_SET_TMS(0);
 
 		for (int i=len+left_padding-1; i>=left_padding; i--) {
 			if (i == left_padding && h->tap_state != estate) {
-				h->set_tms(h, 1);
+				LIBXSVF_HOST_SET_TMS(1);
 				h->tap_state++;
 				call_report_state = 1;
 			}
-			h->set_tdi(h, getbit(inp, i));
-			h->pulse_tck(h);
+			LIBXSVF_HOST_SET_TDI(getbit(inp, i));
+			LIBXSVF_HOST_PULSE_TCK();
 			int tdo_mask_bit = maskp ? getbit(maskp, i) : 0;
 			if (tdo_mask_bit) {
 				int tdo_data_bit = outp ? getbit(outp, i) : 0;
-				int tdo = h->get_tdo(h);
+				int tdo = LIBXSVF_HOST_GET_TDO();
 				if (tdo >= 0 && tdo_data_bit != tdo)
 					tdo_error = 1;
 			}
 		}
 
-		if (call_report_state && h->report_tapstate)
-			h->report_tapstate(h);
+		if (call_report_state)
+			LIBXSVF_HOST_REPORT_TAPSTATE();
 	
 		if (edelay) {
 			TAP(LIBXSVF_TAP_IDLE);
-			h->udelay(h, edelay);
+			LIBXSVF_HOST_UDELAY(edelay);
 		} else {
 			TAP(estate);
 		}
@@ -220,7 +220,7 @@ static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char 
 			return 0;
 
 		if (retries <= 0) {
-			h->report_error(h, __FILE__, __LINE__, "TDO mismatch.");
+			LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
 			return -1;
 		}
 
@@ -250,9 +250,9 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 
 	while (1)
 	{
-		unsigned char cmd = h->read_next_byte(h);
+		unsigned char cmd = LIBXSVF_HOST_GETBYTE();
 
-#define STATUS(_c) do { if (h->report_status) h->report_status(h, "XSVF Command " #_c); } while (0)
+#define STATUS(_c) LIBXSVF_HOST_REPORT_STATUS("XSVF Command " #_c);
 
 		switch (cmd)
 		{
@@ -296,13 +296,13 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 		case XSDRSIZE: {
 			STATUS(XSDRSIZE);
 			state_dr_size = READ_LONG();
-			buf_tdi_data = h->realloc(h, buf_tdi_data, bits2bytes(state_dr_size));
-			buf_tdo_data = h->realloc(h, buf_tdo_data, bits2bytes(state_dr_size));
-			buf_tdo_mask = h->realloc(h, buf_tdo_mask, bits2bytes(state_dr_size));
-			buf_addr_mask = h->realloc(h, buf_addr_mask, bits2bytes(state_dr_size));
-			buf_data_mask = h->realloc(h, buf_data_mask, bits2bytes(state_dr_size));
+			buf_tdi_data = LIBXSVF_HOST_REALLOC(buf_tdi_data, bits2bytes(state_dr_size));
+			buf_tdo_data = LIBXSVF_HOST_REALLOC(buf_tdo_data, bits2bytes(state_dr_size));
+			buf_tdo_mask = LIBXSVF_HOST_REALLOC(buf_tdo_mask, bits2bytes(state_dr_size));
+			buf_addr_mask = LIBXSVF_HOST_REALLOC(buf_addr_mask, bits2bytes(state_dr_size));
+			buf_data_mask = LIBXSVF_HOST_REALLOC(buf_data_mask, bits2bytes(state_dr_size));
 			if (!buf_tdi_data || !buf_tdo_data || !buf_tdo_mask || !buf_addr_mask || !buf_data_mask) {
-				h->report_error(h, __FILE__, __LINE__, "Allocating memory failed.");
+				LIBXSVF_HOST_REPORT_ERROR("Allocating memory failed.");
 				goto error;
 			}
 			break;
@@ -438,12 +438,12 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			unsigned char state2 = READ_BYTE();
 			long usecs = READ_LONG();
 			TAP(xilinx_tap(state1));
-			h->udelay(h, usecs);
+			LIBXSVF_HOST_UDELAY(usecs);
 			TAP(xilinx_tap(state2));
 			break;
 		  }
 		default:
-			h->report_error(h, __FILE__, __LINE__, "Unknown XSVF command.");
+			LIBXSVF_HOST_REPORT_ERROR("Unknown XSVF command.");
 			goto error;
 		}
 	}
@@ -452,11 +452,11 @@ error:
 	rc = -1;
 
 got_complete_command:
-	h->realloc(h, buf_tdi_data, 0);
-	h->realloc(h, buf_tdo_data, 0);
-	h->realloc(h, buf_tdo_mask, 0);
-	h->realloc(h, buf_addr_mask, 0);
-	h->realloc(h, buf_data_mask, 0);
+	LIBXSVF_HOST_REALLOC(buf_tdi_data, 0);
+	LIBXSVF_HOST_REALLOC(buf_tdo_data, 0);
+	LIBXSVF_HOST_REALLOC(buf_tdo_mask, 0);
+	LIBXSVF_HOST_REALLOC(buf_addr_mask, 0);
+	LIBXSVF_HOST_REALLOC(buf_data_mask, 0);
 
 	return rc;
 }

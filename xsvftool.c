@@ -218,7 +218,7 @@ static void h_udelay(struct libxsvf_host *h, long usecs)
 	usleep(usecs);
 }
 
-static int h_read_next_byte(struct libxsvf_host *h)
+static int h_getbyte(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
 	return fgetc(u->f);
@@ -323,7 +323,7 @@ static struct libxsvf_host h = {
 	.udelay = h_udelay,
 	.setup = h_setup,
 	.shutdown = h_shutdown,
-	.read_next_byte = h_read_next_byte,
+	.getbyte = h_getbyte,
 	.set_tms = h_set_tms,
 	.set_tdi = h_set_tdi,
 	.pulse_tck = h_pulse_tck,
