@@ -188,6 +188,26 @@ struct udata_s {
 	int retval[256];
 };
 
+static void h_setup(struct libxsvf_host *h)
+{
+	struct udata_s *u = h->user_data;
+	if (u->verbose >= 1) {
+		fprintf(stderr, "[SETUP]\n");
+		fflush(stderr);
+	}
+	io_setup();
+}
+
+static void h_shutdown(struct libxsvf_host *h)
+{
+	struct udata_s *u = h->user_data;
+	if (u->verbose >= 1) {
+		fprintf(stderr, "[SHUTDOWN]\n");
+		fflush(stderr);
+	}
+	io_shutdown();
+}
+
 static void h_udelay(struct libxsvf_host *h, long usecs)
 {
 	struct udata_s *u = h->user_data;
@@ -301,6 +321,8 @@ static struct udata_s u;
 
 static struct libxsvf_host h = {
 	.udelay = h_udelay,
+	.setup = h_setup,
+	.shutdown = h_shutdown,
 	.read_next_byte = h_read_next_byte,
 	.set_tms = h_set_tms,
 	.set_tdi = h_set_tdi,
@@ -340,10 +362,7 @@ int main(int argc, char **argv)
 			break;
 		case 'x':
 		case 's':
-			if (!gotfiles) {
-				io_setup();
-				gotfiles = 1;
-			}
+			gotfiles = 1;
 			if (!strcmp(optarg, "-"))
 				u.f = stdin;
 			else
@@ -376,7 +395,6 @@ int main(int argc, char **argv)
 		printf("\n");
 	}
 
-	io_shutdown();
 	return rc;
 }
 

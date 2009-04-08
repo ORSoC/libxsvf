@@ -56,6 +56,8 @@ enum libxsvf_tap_state {
 };
 
 struct libxsvf_host {
+	void (*setup)(struct libxsvf_host *h);
+	void (*shutdown)(struct libxsvf_host *h);
 	void (*udelay)(struct libxsvf_host *h, long usecs);
 	int (*read_next_byte)(struct libxsvf_host *h);
 	void (*set_tms)(struct libxsvf_host *h, int v);

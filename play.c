@@ -31,6 +31,7 @@ int libxsvf_play(struct libxsvf_host *h, enum libxsvf_mode mode)
 	int rc = -1;
 
 	h->tap_state = LIBXSVF_TAP_INIT;
+	h->setup(h);
 
 	if (mode == LIBXSVF_MODE_SVF) {
 #ifdef LIBXSVF_WITHOUT_SVF
@@ -49,6 +50,8 @@ int libxsvf_play(struct libxsvf_host *h, enum libxsvf_mode mode)
 	}
 
 	libxsvf_tap_walk(h, LIBXSVF_TAP_RESET);
+	h->shutdown(h);
+
 	return rc;
 }
 

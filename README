@@ -5,6 +5,10 @@ Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
 Please check the subversion repository for updates:
 http://svn.clifford.at/libxsvf/trunk/
 
+WARNING: This library is work in progress! If you need it for anything
+important: Check again in a few weeks when it is stable and I have made
+a real release.
+
 Please send bug reports and fixes to <clifford@clifford.at>.
 
 
@@ -102,6 +106,18 @@ use the library. Please have a look at this program first.
 The host application must provide an libxsvf_host struct as defined
 in libxsvf.h. This struct contains some function pointers that must
 be set to implementations of the following functions:
+
+  void setup(struct libxsvf_host *h);
+
+	This function is called by libxsvf to setup/initialize the
+	jtag interface. It is executed before any other libxsvf_host
+	callback function is called.
+
+  void shutdown(struct libxsvf_host *h);
+
+	This function is called by libxsvf to shutdown the jtag
+	interface. No other libxsvf_host callback function will
+	be called after this function has been executed.
 
   void udelay(struct libxsvf_host *h, long usecs);
 
