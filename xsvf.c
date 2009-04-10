@@ -292,11 +292,11 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 		case XSDRSIZE: {
 			STATUS(XSDRSIZE);
 			state_dr_size = READ_LONG();
-			buf_tdi_data = LIBXSVF_HOST_REALLOC(buf_tdi_data, bits2bytes(state_dr_size));
-			buf_tdo_data = LIBXSVF_HOST_REALLOC(buf_tdo_data, bits2bytes(state_dr_size));
-			buf_tdo_mask = LIBXSVF_HOST_REALLOC(buf_tdo_mask, bits2bytes(state_dr_size));
-			buf_addr_mask = LIBXSVF_HOST_REALLOC(buf_addr_mask, bits2bytes(state_dr_size));
-			buf_data_mask = LIBXSVF_HOST_REALLOC(buf_data_mask, bits2bytes(state_dr_size));
+			buf_tdi_data = LIBXSVF_HOST_REALLOC(buf_tdi_data, bits2bytes(state_dr_size), LIBXSVF_MEM_XSVF_TDI_DATA);
+			buf_tdo_data = LIBXSVF_HOST_REALLOC(buf_tdo_data, bits2bytes(state_dr_size), LIBXSVF_MEM_XSVF_TDO_DATA);
+			buf_tdo_mask = LIBXSVF_HOST_REALLOC(buf_tdo_mask, bits2bytes(state_dr_size), LIBXSVF_MEM_XSVF_TDO_MASK);
+			buf_addr_mask = LIBXSVF_HOST_REALLOC(buf_addr_mask, bits2bytes(state_dr_size), LIBXSVF_MEM_XSVF_ADDR_MASK);
+			buf_data_mask = LIBXSVF_HOST_REALLOC(buf_data_mask, bits2bytes(state_dr_size), LIBXSVF_MEM_XSVF_DATA_MASK);
 			if (!buf_tdi_data || !buf_tdo_data || !buf_tdo_mask || !buf_addr_mask || !buf_data_mask) {
 				LIBXSVF_HOST_REPORT_ERROR("Allocating memory failed.");
 				goto error;
@@ -448,11 +448,11 @@ error:
 	rc = -1;
 
 got_complete_command:
-	LIBXSVF_HOST_REALLOC(buf_tdi_data, 0);
-	LIBXSVF_HOST_REALLOC(buf_tdo_data, 0);
-	LIBXSVF_HOST_REALLOC(buf_tdo_mask, 0);
-	LIBXSVF_HOST_REALLOC(buf_addr_mask, 0);
-	LIBXSVF_HOST_REALLOC(buf_data_mask, 0);
+	LIBXSVF_HOST_REALLOC(buf_tdi_data, 0, LIBXSVF_MEM_XSVF_TDI_DATA);
+	LIBXSVF_HOST_REALLOC(buf_tdo_data, 0, LIBXSVF_MEM_XSVF_TDO_DATA);
+	LIBXSVF_HOST_REALLOC(buf_tdo_mask, 0, LIBXSVF_MEM_XSVF_TDO_MASK);
+	LIBXSVF_HOST_REALLOC(buf_addr_mask, 0, LIBXSVF_MEM_XSVF_ADDR_MASK);
+	LIBXSVF_HOST_REALLOC(buf_data_mask, 0, LIBXSVF_MEM_XSVF_DATA_MASK);
 
 	return rc;
 }

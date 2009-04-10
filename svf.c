@@ -37,7 +37,7 @@ static int read_command(struct libxsvf_host *h, char **buffer_p, int *len_p)
 	{
 		if (len < p+10) {
 			len = len < 64 ? 96 : len*2;
-			buffer = LIBXSVF_HOST_REALLOC(buffer, len);
+			buffer = LIBXSVF_HOST_REALLOC(buffer, len, LIBXSVF_MEM_SVF_COMMANDBUF);
 			*buffer_p = buffer;
 			*len_p = len;
 			if (!buffer) {
@@ -150,13 +150,13 @@ struct bitdata_s {
 	unsigned char *ret_mask;
 };
 
-static void bitdata_free(struct libxsvf_host *h, struct bitdata_s *bd)
+static void bitdata_free(struct libxsvf_host *h, struct bitdata_s *bd, int offset)
 {
-	LIBXSVF_HOST_REALLOC(bd->tdi_data, 0);
-	LIBXSVF_HOST_REALLOC(bd->tdi_mask, 0);
-	LIBXSVF_HOST_REALLOC(bd->tdo_data, 0);
-	LIBXSVF_HOST_REALLOC(bd->tdo_mask, 0);
-	LIBXSVF_HOST_REALLOC(bd->ret_mask, 0);
+	LIBXSVF_HOST_REALLOC(bd->tdi_data, 0, offset+0);
+	LIBXSVF_HOST_REALLOC(bd->tdi_mask, 0, offset+1);
+	LIBXSVF_HOST_REALLOC(bd->tdo_data, 0, offset+2);
+	LIBXSVF_HOST_REALLOC(bd->tdo_mask, 0, offset+3);
+	LIBXSVF_HOST_REALLOC(bd->ret_mask, 0, offset+4);
 
 	bd->tdi_data = (void*)0;
 	bd->tdi_mask = (void*)0;
@@ -174,7 +174,7 @@ static int hex(char ch)
 	return 0;
 }
 
-static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct bitdata_s *bd)
+static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct bitdata_s *bd, int offset)
 {
 	bd->len = 0;
 	while (*p >= '0' && *p <= '9') {
@@ -185,37 +185,43 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 		p++;
 	}
 	if (bd->len != bd->alloced_len) {
-		bitdata_free(h, bd);
+		bitdata_free(h, bd, offset);
 		bd->alloced_len = bd->len;
 		bd->alloced_bytes = (bd->len+7) / 8;
 	}
 	while (*p)
 	{
+		int memnum = 0;
 		unsigned char **dp = (void*)0;
 		if (!strtokencmp(p, "TDI")) {
 			p += strtokenskip(p);
 			dp = &bd->tdi_data;
+			memnum = 0;
 		}
 		if (!strtokencmp(p, "TDO")) {
 			p += strtokenskip(p);
 			dp = &bd->tdo_data;
+			memnum = 1;
 		}
 		if (!strtokencmp(p, "SMASK")) {
 			p += strtokenskip(p);
 			dp = &bd->tdi_mask;
+			memnum = 2;
 		}
 		if (!strtokencmp(p, "MASK")) {
 			p += strtokenskip(p);
 			dp = &bd->tdo_mask;
+			memnum = 3;
 		}
 		if (!strtokencmp(p, "RMASK")) {
 			p += strtokenskip(p);
 			dp = &bd->ret_mask;
+			memnum = 4;
 		}
 		if (!dp)
 			return (void*)0;
 		if (*dp == (void*)0) {
-			*dp = LIBXSVF_HOST_REALLOC(*dp, bd->alloced_bytes);
+			*dp = LIBXSVF_HOST_REALLOC(*dp, bd->alloced_bytes, offset+memnum);
 		}
 		if (*dp == (void*)0) {
 			LIBXSVF_HOST_REPORT_ERROR("Allocating memory failed.");
@@ -373,7 +379,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		if (!strtokencmp(p, "HDR")) {
 			p += strtokenskip(p);
-			p = bitdata_parse(h, p, &bd_hdr);
+			p = bitdata_parse(h, p, &bd_hdr, LIBXSVF_MEM_SVF_HDR_TDI_DATA);
 			if (!p)
 				goto syntax_error;
 			goto eol_check;
@@ -381,7 +387,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		if (!strtokencmp(p, "HIR")) {
 			p += strtokenskip(p);
-			p = bitdata_parse(h, p, &bd_hir);
+			p = bitdata_parse(h, p, &bd_hir, LIBXSVF_MEM_SVF_HIR_TDI_DATA);
 			if (!p)
 				goto syntax_error;
 			goto eol_check;
@@ -470,7 +476,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		if (!strtokencmp(p, "SDR")) {
 			p += strtokenskip(p);
-			p = bitdata_parse(h, p, &bd_sdr);
+			p = bitdata_parse(h, p, &bd_sdr, LIBXSVF_MEM_SVF_SDR_TDI_DATA);
 			if (!p)
 				goto syntax_error;
 			if (libxsvf_tap_walk(h, LIBXSVF_TAP_DRSHIFT) < 0)
@@ -488,7 +494,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		if (!strtokencmp(p, "SIR")) {
 			p += strtokenskip(p);
-			p = bitdata_parse(h, p, &bd_sir);
+			p = bitdata_parse(h, p, &bd_sir, LIBXSVF_MEM_SVF_SIR_TDI_DATA);
 			if (!p)
 				goto syntax_error;
 			if (libxsvf_tap_walk(h, LIBXSVF_TAP_IRSHIFT) < 0)
@@ -519,7 +525,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		if (!strtokencmp(p, "TDR")) {
 			p += strtokenskip(p);
-			p = bitdata_parse(h, p, &bd_tdr);
+			p = bitdata_parse(h, p, &bd_tdr, LIBXSVF_MEM_SVF_TDR_TDI_DATA);
 			if (!p)
 				goto syntax_error;
 			goto eol_check;
@@ -527,7 +533,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 
 		if (!strtokencmp(p, "TIR")) {
 			p += strtokenskip(p);
-			p = bitdata_parse(h, p, &bd_tir);
+			p = bitdata_parse(h, p, &bd_tir, LIBXSVF_MEM_SVF_TIR_TDI_DATA);
 			if (!p)
 				goto syntax_error;
 			goto eol_check;
@@ -576,14 +582,14 @@ error:
 		break;
 	}
 
-	bitdata_free(h, &bd_hdr);
-	bitdata_free(h, &bd_hir);
-	bitdata_free(h, &bd_tdr);
-	bitdata_free(h, &bd_tir);
-	bitdata_free(h, &bd_sdr);
-	bitdata_free(h, &bd_sir);
+	bitdata_free(h, &bd_hdr, LIBXSVF_MEM_SVF_HDR_TDI_DATA);
+	bitdata_free(h, &bd_hir, LIBXSVF_MEM_SVF_HIR_TDI_DATA);
+	bitdata_free(h, &bd_tdr, LIBXSVF_MEM_SVF_TDR_TDI_DATA);
+	bitdata_free(h, &bd_tir, LIBXSVF_MEM_SVF_TIR_TDI_DATA);
+	bitdata_free(h, &bd_sdr, LIBXSVF_MEM_SVF_SDR_TDI_DATA);
+	bitdata_free(h, &bd_sir, LIBXSVF_MEM_SVF_SIR_TDI_DATA);
 
-	LIBXSVF_HOST_REALLOC(command_buffer, 0);
+	LIBXSVF_HOST_REALLOC(command_buffer, 0, LIBXSVF_MEM_SVF_COMMANDBUF);
 
 	return rc;
 }

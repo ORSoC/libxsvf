@@ -203,11 +203,18 @@ be set to implementations of the following functions:
 	in libxsvf. It is not optional and should provide a
 	way to notify a user about the error.
 
-  void *realloc(struct libxsvf_host *h, void *ptr, int size);
+  void *realloc(struct libxsvf_host *h, void *ptr, int size, enum libxsvf_mem which);
 
 	This function must provide a way to allocate dynamic
 	memory. In cases where there is a standard c library
 	it may be a simple wrapper for the realloc() function.
+
+	The xsvftool command line option '-r' can be used to
+	auto-generate a realloc function for static buffers, based
+	on the requirements from an example svf or xsvf file.
+	Example given:
+
+		./xsvftool -r my_host_realloc -s demo.svf
 
 	(Re-)allocation may fail. In this cases a NULL pointer
 	must be returned. The library then generates an error,
@@ -250,9 +257,9 @@ It is possible to disable SVF or XSVF support by setting the
 LIBXSVF_WITHOUT_SVF or LIBXSVF_WITHOUT_XSVF define. In this cases
 one would not want to link against svf.o or xsvf.o.
 
-One does not need to link agains state.o if the libxsvf_state2str()
-function is not needed. Usually this function is only used for
-debugging purposes.
+One does not need to link agains statename.o and memname.o if the
+libxsvf_state2str() and libxsvf_mem2str() functions is not needed.
+Usually this functions are used for debugging purposes only.
 
 It is possible to modify the LIBXSVF_HOST_REPORT_STATUS() and
 LIBXSVF_HOST_REPORT_ERROR() macros in libxsvf.h to be empty

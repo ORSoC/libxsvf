@@ -293,8 +293,16 @@ static void h_report_error(struct libxsvf_host *h, const char *file, int line, c
 	fprintf(stderr, "[%s:%d] %s\n", file, line, message);
 }
 
-static void *h_realloc(struct libxsvf_host *h, void *ptr, int size)
+static int realloc_maxsize[LIBXSVF_MEM_NUM];
+
+static void *h_realloc(struct libxsvf_host *h, void *ptr, int size, enum libxsvf_mem which)
 {
+	struct udata_s *u = h->user_data;
+	if (size > realloc_maxsize[which])
+		realloc_maxsize[which] = size;
+	if (u->verbose >= 2) {
+		fprintf(stderr, "[REALLOC:%s:%d]\n", libxsvf_mem2str(which), size);
+	}
 	return realloc(ptr, size);
 }
 
@@ -319,7 +327,7 @@ const char *progname;
 
 static void help()
 {
-	fprintf(stderr, "Usage: %s [ -v ... ] { -s svf-file | -x xsvf-file } ...\n", progname);
+	fprintf(stderr, "Usage: %s [ -r funcname ] [ -v ... ] { -s svf-file | -x xsvf-file } ...\n", progname);
 	exit(1);
 }
 
@@ -327,13 +335,17 @@ int main(int argc, char **argv)
 {
 	int rc = 0;
 	int gotfiles = 0;
+	const char *realloc_name = NULL;
 	int opt;
 
 	progname = argc >= 1 ? argv[0] : "xvsftool";
-	while ((opt = getopt(argc, argv, "vx:s:")) != -1)
+	while ((opt = getopt(argc, argv, "r:vx:s:")) != -1)
 	{
 		switch (opt)
 		{
+		case 'r':
+			realloc_name = optarg;
+			break;
 		case 'v':
 			u.verbose++;
 			break;
@@ -370,6 +382,31 @@ int main(int argc, char **argv)
 		for (int i=0; i < u.retval_i; i++)
 			printf(" %d", u.retval[i]);
 		printf("\n");
+	}
+
+	if (realloc_name) {
+		printf("void *%s(void *h, void *ptr, int size, int which) {\n", realloc_name);
+		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+			if (realloc_maxsize[i] > 0)
+				printf("\tstatic unsigned char buf_%s[%d];\n", libxsvf_mem2str(i), realloc_maxsize[i]);
+		}
+		printf("\tstatic unsigned char *buflist[%d] = {", LIBXSVF_MEM_NUM);
+		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+			if (realloc_maxsize[i] > 0)
+				printf("%sbuf_%s", i ? ", " : " ", libxsvf_mem2str(i));
+			else
+				printf("%s(void*)0", i ? ", " : " ");
+		}
+		printf(" };\n\tstatic int sizelist[%d] = {", LIBXSVF_MEM_NUM);
+		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+			if (realloc_maxsize[i] > 0)
+				printf("%ssizeof(buf_%s)", i ? ", " : " ", libxsvf_mem2str(i));
+			else
+				printf("%s0", i ? ", " : " ");
+		}
+		printf(" };\n");
+		printf("\treturn which < %d && size <= sizelist[which] ? buflist[which] : (void*)0;\n", LIBXSVF_MEM_NUM);
+		printf("};\n");
 	}
 
 	return rc;
