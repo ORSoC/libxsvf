@@ -132,20 +132,30 @@ be set to implementations of the following functions:
 	A function that returns the next byte from the input file
 	or -1 on end of file.
 
-  void set_tms(struct libxsvf_host *h, int v);
+  void pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask)
 
-	A function to set the JTAG TMS line to the specified
-	value (1 or 0).
+	This is the main JTAG I/O callback function.
+	It must perform the following tasks:
 
-  void set_tdi(struct libxsvf_host *h, int v);
+	* Set the tms line to the value specified in the 'tms' argument.
 
-	A function to set the JTAG TDI line to the specified
-	value (1 or 0).
+	* Set the tdi line to the value specified in the 'tdi' argument.
+	  This argument may be '-1' to indicate that the value of the tdi
+	  line is not important. In this case the tdi line may be set to
+	  any value or may be left unchanged.
 
-  void pulse_tck(struct libxsvf_host *h);
+	* Create a negative pulse (1-0-1) on the JTAG TCK line.
 
-	A function to create a negative pulse (1-0-1) on the
-	JTAG TCK line.
+	* Check the tdo line against the should-be value specified in
+	  the 'tdo' argument. This argument may be '-1' to indicate that
+	  the value of the tdo line doesn't need to be checked.
+
+	* Store the current tdo value if the 'rmask' value is set to '1'.
+	  This step may be ignored if the RMASK feature (see "Limitations
+	  and non-standard extensions" above) is not used.
+	
+	The function must return 0 if everything went fine or -1 on a
+	TDO-mismatch-error.
 
   void pulse_sck(struct libxsvf_host *h);
 
@@ -169,26 +179,6 @@ be set to implementations of the following functions:
 	be set to a NULL pointer on implementations without an
 	TRST line. In this cases an SVF 'TRST' command has no
 	effect.
-
-  int get_tdo(struct libxsvf_host *h);
-
-	A function to read the status of the JTAG TDO line.
-
-	Possible return values:
-		 1 ... JTAG TDO signal is high
-		 0 ... JTAG TDO signal is low
-		-1 ... JTAG TDO signal is unkown
-
-	A return code of -1 can be used to signal that the state
-	of the TDO line is unkown and should be ignored. (I.e.
-	no 'TDO mismatch' error should be generated.)
-
-  void ret_tdo(struct libxsvf_host *h, int v);
-
-	This function is called for every TDO bit that is marked
-	using an RMASK to be returned to the host environment.
-
-	This function pointer is optional (may be set to NULL).
 
   void report_tapstate(struct libxsvf_host *h);
 

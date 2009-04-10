@@ -184,29 +184,25 @@ static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char 
 	while (1)
 	{
 		int tdo_error = 0;
-		int call_report_state = 0;
+		int tms = 0;
 
 		TAP(state);
-		LIBXSVF_HOST_SET_TMS(0);
+		tms = 0;
 
 		for (int i=len+left_padding-1; i>=left_padding; i--) {
 			if (i == left_padding && h->tap_state != estate) {
-				LIBXSVF_HOST_SET_TMS(1);
 				h->tap_state++;
-				call_report_state = 1;
+				tms = 1;
 			}
-			LIBXSVF_HOST_SET_TDI(getbit(inp, i));
-			LIBXSVF_HOST_PULSE_TCK();
-			int tdo_mask_bit = maskp ? getbit(maskp, i) : 0;
-			if (tdo_mask_bit) {
-				int tdo_data_bit = outp ? getbit(outp, i) : 0;
-				int tdo = LIBXSVF_HOST_GET_TDO();
-				if (tdo >= 0 && tdo_data_bit != tdo)
-					tdo_error = 1;
-			}
+			int tdi = getbit(inp, i);
+			int tdo = -1;
+			if (maskp && getbit(maskp, i))
+				tdo = outp && getbit(outp, i);
+			if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, 0) < 0)
+				tdo_error = 1;
 		}
 
-		if (call_report_state)
+		if (tms)
 			LIBXSVF_HOST_REPORT_TAPSTATE();
 	
 		if (edelay) {

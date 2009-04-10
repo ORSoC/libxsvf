@@ -286,40 +286,31 @@ static int getbit(unsigned char *data, int n)
 	return (data[n/8] & (1 << (7 - n%8))) ? 1 : 0;
 }
 
-static int bitdata_play(struct libxsvf_host *h, int first, struct bitdata_s *bd, enum libxsvf_tap_state estate)
+static int bitdata_play(struct libxsvf_host *h, struct bitdata_s *bd, enum libxsvf_tap_state estate)
 {
 	int left_padding = (8 - bd->len % 8) % 8;
 	int tdo_error = 0;
-	int call_report_state = 0;
-
-	if (first)
-		LIBXSVF_HOST_SET_TMS(0);
+	int tms = 0;
 
 	for (int i=bd->len+left_padding-1; i >= left_padding; i--) {
 		if (i == left_padding && h->tap_state != estate) {
-			LIBXSVF_HOST_SET_TMS(1);
 			h->tap_state++;
-			call_report_state = 1;
+			tms = 1;
 		}
+		int tdi = -1;
 		if (bd->tdi_data) {
 			if (!bd->tdi_mask || getbit(bd->tdi_mask, i))
-				LIBXSVF_HOST_SET_TDI(getbit(bd->tdi_data, i));
+				tdi = getbit(bd->tdi_data, i);
 		}
-		LIBXSVF_HOST_PULSE_TCK();
-		if (bd->tdo_data || bd->ret_mask) {
-			int tdo_mask_bit = !bd->tdo_mask || getbit(bd->tdo_mask, i);
-			int ret_mask_bit = bd->ret_mask && getbit(bd->ret_mask, i);
-			if (tdo_mask_bit || ret_mask_bit) {
-				int tdo = LIBXSVF_HOST_GET_TDO();
-				if (tdo_mask_bit && tdo >= 0 && tdo != getbit(bd->tdo_data, i))
-					tdo_error = 1;
-				if (ret_mask_bit)
-					LIBXSVF_HOST_RET_TDO(tdo);
-			}
-		}
+		int tdo = -1;
+		if (bd->tdo_data && (!bd->tdo_mask || getbit(bd->tdo_mask, i)))
+			tdo = getbit(bd->tdo_data, i);
+		int rmask = bd->ret_mask && getbit(bd->ret_mask, i);
+		if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, rmask) < 0)
+			tdo_error = 0;
 	}
 
-	if (call_report_state)
+	if (tms)
 		LIBXSVF_HOST_REPORT_TAPSTATE();
 
 	if (!tdo_error)
@@ -462,9 +453,8 @@ int libxsvf_svf(struct libxsvf_host *h)
 				LIBXSVF_HOST_REPORT_ERROR("WARNING: Maximum time in SVF RUNTEST command is ignored.");
 			}
 			if (tck_count >= 0) {
-				LIBXSVF_HOST_SET_TMS(0);
 				for (int i=0; i < tck_count; i++) {
-					LIBXSVF_HOST_PULSE_TCK();
+					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0);
 				}
 			}
 			if (sck_count >= 0) {
@@ -485,11 +475,11 @@ int libxsvf_svf(struct libxsvf_host *h)
 				goto syntax_error;
 			if (libxsvf_tap_walk(h, LIBXSVF_TAP_DRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, 1, &bd_hdr, LIBXSVF_TAP_DRSHIFT) < 0)
+			if (bitdata_play(h, &bd_hdr, LIBXSVF_TAP_DRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, 0, &bd_sdr, LIBXSVF_TAP_DRSHIFT) < 0)
+			if (bitdata_play(h, &bd_sdr, LIBXSVF_TAP_DRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, 0, &bd_tdr, state_enddr) < 0)
+			if (bitdata_play(h, &bd_tdr, state_enddr) < 0)
 				goto error;
 			if (libxsvf_tap_walk(h, state_enddr) < 0)
 				goto error;
@@ -503,11 +493,11 @@ int libxsvf_svf(struct libxsvf_host *h)
 				goto syntax_error;
 			if (libxsvf_tap_walk(h, LIBXSVF_TAP_IRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, 1, &bd_hir, LIBXSVF_TAP_IRSHIFT) < 0)
+			if (bitdata_play(h, &bd_hir, LIBXSVF_TAP_IRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, 0, &bd_sir, LIBXSVF_TAP_IRSHIFT) < 0)
+			if (bitdata_play(h, &bd_sir, LIBXSVF_TAP_IRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, 0, &bd_tir, state_endir) < 0)
+			if (bitdata_play(h, &bd_tir, state_endir) < 0)
 				goto error;
 			if (libxsvf_tap_walk(h, state_endir) < 0)
 				goto error;

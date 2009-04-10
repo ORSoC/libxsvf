@@ -224,38 +224,39 @@ static int h_getbyte(struct libxsvf_host *h)
 	return fgetc(u->f);
 }
 
-static void h_set_tms(struct libxsvf_host *h, int v)
+static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 3) {
-		fprintf(stderr, "[TMS:%d]\n", v);
-	}
-	io_tms(v);
-}
 
-static void h_set_tdi(struct libxsvf_host *h, int v)
-{
-	struct udata_s *u = h->user_data;
-	if (u->verbose >= 3) {
-		fprintf(stderr, "[TDI:%d]\n", v);
-	}
-	io_tdi(v);
-}
+	io_tms(tms);
 
-static void h_pulse_tck(struct libxsvf_host *h)
-{
-	struct udata_s *u = h->user_data;
-	if (u->verbose >= 4) {
-		fprintf(stderr, "[TCK]\n");
-	}
+	if (tdi >= 0)
+		io_tdi(tdi);
+
 	io_tck(0);
 	io_tck(1);
+
+	int line_tdo = -1;
+	if (tdo >= 0 || rmask)
+		line_tdo = io_tdo();
+
+	if (rmask && u->retval_i < 256)
+		u->retval[u->retval_i++] = line_tdo;
+
+	if (u->verbose >= 3) {
+		fprintf(stderr, "[TMS:%d, TDI:%d, TDO_ARG:%d, TDO_LINE:%d, RMASK:%d]\n", tms, tdi, tdo, line_tdo, rmask);
+	}
+
+	if (tdo >= 0 && line_tdo >= 0 && tdo != line_tdo)
+		return -1;
+
+	return 0;
 }
 
 static void h_pulse_sck(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 4) {
+	if (u->verbose >= 3) {
 		fprintf(stderr, "[SCK]\n");
 	}
 	io_sck(0);
@@ -269,26 +270,6 @@ static void h_set_trst(struct libxsvf_host *h, int v)
 		fprintf(stderr, "[TRST:%d]\n", v);
 	}
 	io_trst(v);
-}
-
-static int h_get_tdo(struct libxsvf_host *h)
-{
-	int v = io_tdo();
-	struct udata_s *u = h->user_data;
-	if (u->verbose >= 3) {
-		fprintf(stderr, "[TDO:%d]\n", v);
-	}
-	return v;
-}
-
-static void h_ret_tdo(struct libxsvf_host *h, int v)
-{
-	struct udata_s *u = h->user_data;
-	if (u->verbose >= 3) {
-		fprintf(stderr, "[RET:%d]\n", v);
-	}
-	if (u->retval_i < 256)
-		u->retval[u->retval_i++] = v;
 }
 
 static void h_report_tapstate(struct libxsvf_host *h)
@@ -324,13 +305,9 @@ static struct libxsvf_host h = {
 	.setup = h_setup,
 	.shutdown = h_shutdown,
 	.getbyte = h_getbyte,
-	.set_tms = h_set_tms,
-	.set_tdi = h_set_tdi,
 	.pulse_tck = h_pulse_tck,
 	.pulse_sck = h_pulse_sck,
 	.set_trst = h_set_trst,
-	.get_tdo = h_get_tdo,
-	.ret_tdo = h_ret_tdo,
 	.report_tapstate = h_report_tapstate,
 	.report_status = h_report_status,
 	.report_error = h_report_error,
