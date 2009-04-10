@@ -385,27 +385,32 @@ int main(int argc, char **argv)
 	}
 
 	if (realloc_name) {
-		printf("void *%s(void *h, void *ptr, int size, int which) {\n", realloc_name);
+		int num = 0;
 		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+			if (realloc_maxsize[i] > 0)
+				num = i+1;
+		}
+		printf("void *%s(void *h, void *ptr, int size, int which) {\n", realloc_name);
+		for (int i = 0; i < num; i++) {
 			if (realloc_maxsize[i] > 0)
 				printf("\tstatic unsigned char buf_%s[%d];\n", libxsvf_mem2str(i), realloc_maxsize[i]);
 		}
-		printf("\tstatic unsigned char *buflist[%d] = {", LIBXSVF_MEM_NUM);
-		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+		printf("\tstatic unsigned char *buflist[%d] = {", num);
+		for (int i = 0; i < num; i++) {
 			if (realloc_maxsize[i] > 0)
 				printf("%sbuf_%s", i ? ", " : " ", libxsvf_mem2str(i));
 			else
 				printf("%s(void*)0", i ? ", " : " ");
 		}
-		printf(" };\n\tstatic int sizelist[%d] = {", LIBXSVF_MEM_NUM);
-		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+		printf(" };\n\tstatic int sizelist[%d] = {", num);
+		for (int i = 0; i < num; i++) {
 			if (realloc_maxsize[i] > 0)
 				printf("%ssizeof(buf_%s)", i ? ", " : " ", libxsvf_mem2str(i));
 			else
 				printf("%s0", i ? ", " : " ");
 		}
 		printf(" };\n");
-		printf("\treturn which < %d && size <= sizelist[which] ? buflist[which] : (void*)0;\n", LIBXSVF_MEM_NUM);
+		printf("\treturn which < %d && size <= sizelist[which] ? buflist[which] : (void*)0;\n", num);
 		printf("};\n");
 	}
 
