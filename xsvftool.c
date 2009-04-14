@@ -283,7 +283,7 @@ static void h_report_tapstate(struct libxsvf_host *h)
 static void h_report_device(struct libxsvf_host *h, unsigned long idcode)
 {
 	// struct udata_s *u = h->user_data;
-	printf("idcode=0x%08lx, rev=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode,
+	printf("idcode=0x%08lx, revision=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode,
 			(idcode >> 28) & 0xf, (idcode >> 12) & 0xffff, (idcode >> 1) & 0x7ff);
 }
 
@@ -335,7 +335,27 @@ const char *progname;
 
 static void help()
 {
-	fprintf(stderr, "Usage: %s [ -r funcname ] [ -v ... ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Usage: %s [ -r funcname ] [ -v ... ] [ -L | -B ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -r funcname\n");
+	fprintf(stderr, "          Dump C-code for pseudo-allocator based on example files\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -v, -vv, -vvv\n");
+	fprintf(stderr, "          Verbose, more verbose and even more verbose\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -L, -B\n");
+	fprintf(stderr, "          Print RMASK bits as hex value (little or big endian)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -s svf-file\n");
+	fprintf(stderr, "          Play the specified SVF file\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -x xsvf-file\n");
+	fprintf(stderr, "          Play the specified XSVF file\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -c\n");
+	fprintf(stderr, "          List devices in JTAG chain\n");
+	fprintf(stderr, "\n");
 	exit(1);
 }
 
@@ -343,11 +363,12 @@ int main(int argc, char **argv)
 {
 	int rc = 0;
 	int gotaction = 0;
+	int hex_mode = 0;
 	const char *realloc_name = NULL;
 	int opt;
 
 	progname = argc >= 1 ? argv[0] : "xvsftool";
-	while ((opt = getopt(argc, argv, "r:vx:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "r:vLBx:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -383,7 +404,12 @@ int main(int argc, char **argv)
 				rc = 1;
 			}
 			break;
-			
+		case 'L':
+			hex_mode = 1;
+			break;
+		case 'B':
+			hex_mode = 2;
+			break;
 		default:
 			help();
 			break;
@@ -394,9 +420,19 @@ int main(int argc, char **argv)
 		help();
 
 	if (u.retval_i) {
-		printf("%d rmask bits:", u.retval_i);
-		for (int i=0; i < u.retval_i; i++)
-			printf(" %d", u.retval[i]);
+		if (hex_mode) {
+			printf("0x");
+			for (int i=0; i < u.retval_i; i+=4) {
+				int val = 0;
+				for (int j=i; j<i+4; j++)
+					val = val << 1 | u.retval[hex_mode > 1 ? j : u.retval_i - j - 1];
+				printf("%x", val);
+			}
+		} else {
+			printf("%d rmask bits:", u.retval_i);
+			for (int i=0; i < u.retval_i; i++)
+				printf(" %d", u.retval[i]);
+		}
 		printf("\n");
 	}
 

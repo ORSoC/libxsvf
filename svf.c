@@ -481,9 +481,9 @@ int libxsvf_svf(struct libxsvf_host *h)
 				goto syntax_error;
 			if (libxsvf_tap_walk(h, LIBXSVF_TAP_DRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, &bd_hdr, LIBXSVF_TAP_DRSHIFT) < 0)
+			if (bitdata_play(h, &bd_hdr, bd_sdr.len+bd_tdr.len > 0 ? LIBXSVF_TAP_DRSHIFT : state_enddr) < 0)
 				goto error;
-			if (bitdata_play(h, &bd_sdr, LIBXSVF_TAP_DRSHIFT) < 0)
+			if (bitdata_play(h, &bd_sdr, bd_tdr.len > 0 ? LIBXSVF_TAP_DRSHIFT : state_enddr) < 0)
 				goto error;
 			if (bitdata_play(h, &bd_tdr, state_enddr) < 0)
 				goto error;
@@ -499,9 +499,9 @@ int libxsvf_svf(struct libxsvf_host *h)
 				goto syntax_error;
 			if (libxsvf_tap_walk(h, LIBXSVF_TAP_IRSHIFT) < 0)
 				goto error;
-			if (bitdata_play(h, &bd_hir, LIBXSVF_TAP_IRSHIFT) < 0)
+			if (bitdata_play(h, &bd_hir, bd_sir.len+bd_tir.len > 0 ? LIBXSVF_TAP_IRSHIFT : state_endir) < 0)
 				goto error;
-			if (bitdata_play(h, &bd_sir, LIBXSVF_TAP_IRSHIFT) < 0)
+			if (bitdata_play(h, &bd_sir, bd_tir.len > 0 ? LIBXSVF_TAP_IRSHIFT : state_endir) < 0)
 				goto error;
 			if (bitdata_play(h, &bd_tir, state_endir) < 0)
 				goto error;
