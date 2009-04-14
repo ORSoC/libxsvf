@@ -29,7 +29,8 @@
 
 enum libxsvf_mode {
 	LIBXSVF_MODE_SVF,
-	LIBXSVF_MODE_XSVF
+	LIBXSVF_MODE_XSVF,
+	LIBXSVF_MODE_SCAN
 };
 
 enum libxsvf_tap_state {
@@ -104,6 +105,7 @@ struct libxsvf_host {
 	void (*pulse_sck)(struct libxsvf_host *h);
 	void (*set_trst)(struct libxsvf_host *h, int v);
 	void (*report_tapstate)(struct libxsvf_host *h);
+	void (*report_device)(struct libxsvf_host *h, unsigned long idcode);
 	void (*report_status)(struct libxsvf_host *h, const char *message);
 	void (*report_error)(struct libxsvf_host *h, const char *file, int line, const char *message);
 	void *(*realloc)(struct libxsvf_host *h, void *ptr, int size, enum libxsvf_mem which);
@@ -118,6 +120,7 @@ const char *libxsvf_mem2str(enum libxsvf_mem which);
 /* Internal API */ 
 int libxsvf_svf(struct libxsvf_host *h);
 int libxsvf_xsvf(struct libxsvf_host *h);
+int libxsvf_scan(struct libxsvf_host *h);
 int libxsvf_tap_walk(struct libxsvf_host *, enum libxsvf_tap_state);
 
 /* Host accessor macros (see README) */
@@ -129,6 +132,7 @@ int libxsvf_tap_walk(struct libxsvf_host *, enum libxsvf_tap_state);
 #define LIBXSVF_HOST_PULSE_SCK() do { if (h->pulse_sck) h->pulse_sck(h); } while (0)
 #define LIBXSVF_HOST_SET_TRST(_v) do { if (h->set_trst) h->set_trst(h, _v); } while (0)
 #define LIBXSVF_HOST_REPORT_TAPSTATE() do { if (h->report_tapstate) h->report_tapstate(h); } while (0)
+#define LIBXSVF_HOST_REPORT_DEVICE(_v) do { if (h->report_device) h->report_device(h, _v); } while (0)
 #define LIBXSVF_HOST_REPORT_STATUS(_msg) do { if (h->report_status) h->report_status(h, _msg); } while (0)
 #define LIBXSVF_HOST_REPORT_ERROR(_msg) h->report_error(h, __FILE__, __LINE__, _msg)
 #define LIBXSVF_HOST_REALLOC(_ptr, _size, _which) h->realloc(h, _ptr, _size, _which)

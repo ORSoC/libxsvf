@@ -124,6 +124,7 @@ static void io_tdi(int val)
 static void io_tck(int val)
 {
 	io_data->tck = val;
+	// usleep(1);
 }
 
 static void io_sck(int val)
@@ -236,21 +237,20 @@ static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rm
 	io_tck(0);
 	io_tck(1);
 
-	int line_tdo = -1;
-	if (tdo >= 0 || rmask)
-		line_tdo = io_tdo();
+	int line_tdo = io_tdo();
+	int rc = line_tdo >= 0 ? line_tdo : 0;
 
-	if (rmask && u->retval_i < 256)
+	if (rmask == 1 && u->retval_i < 256)
 		u->retval[u->retval_i++] = line_tdo;
 
+	if (tdo >= 0 && line_tdo >= 0 && tdo != line_tdo)
+		rc = -1;
+
 	if (u->verbose >= 3) {
-		fprintf(stderr, "[TMS:%d, TDI:%d, TDO_ARG:%d, TDO_LINE:%d, RMASK:%d]\n", tms, tdi, tdo, line_tdo, rmask);
+		fprintf(stderr, "[TMS:%d, TDI:%d, TDO_ARG:%d, TDO_LINE:%d, RMASK:%d, RC:%d]\n", tms, tdi, tdo, line_tdo, rmask, rc);
 	}
 
-	if (tdo >= 0 && line_tdo >= 0 && tdo != line_tdo)
-		return -1;
-
-	return 0;
+	return rc;
 }
 
 static void h_pulse_sck(struct libxsvf_host *h)
@@ -278,6 +278,13 @@ static void h_report_tapstate(struct libxsvf_host *h)
 	if (u->verbose >= 2) {
 		fprintf(stderr, "[%s]\n", libxsvf_state2str(h->tap_state));
 	}
+}
+
+static void h_report_device(struct libxsvf_host *h, unsigned long idcode)
+{
+	// struct udata_s *u = h->user_data;
+	printf("idcode=0x%08lx, rev=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode,
+			(idcode >> 28) & 0xf, (idcode >> 12) & 0xffff, (idcode >> 1) & 0x7ff);
 }
 
 static void h_report_status(struct libxsvf_host *h, const char *message)
@@ -317,6 +324,7 @@ static struct libxsvf_host h = {
 	.pulse_sck = h_pulse_sck,
 	.set_trst = h_set_trst,
 	.report_tapstate = h_report_tapstate,
+	.report_device = h_report_device,
 	.report_status = h_report_status,
 	.report_error = h_report_error,
 	.realloc = h_realloc,
@@ -327,19 +335,19 @@ const char *progname;
 
 static void help()
 {
-	fprintf(stderr, "Usage: %s [ -r funcname ] [ -v ... ] { -s svf-file | -x xsvf-file } ...\n", progname);
+	fprintf(stderr, "Usage: %s [ -r funcname ] [ -v ... ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
 	exit(1);
 }
 
 int main(int argc, char **argv)
 {
 	int rc = 0;
-	int gotfiles = 0;
+	int gotaction = 0;
 	const char *realloc_name = NULL;
 	int opt;
 
 	progname = argc >= 1 ? argv[0] : "xvsftool";
-	while ((opt = getopt(argc, argv, "r:vx:s:")) != -1)
+	while ((opt = getopt(argc, argv, "r:vx:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -351,7 +359,7 @@ int main(int argc, char **argv)
 			break;
 		case 'x':
 		case 's':
-			gotfiles = 1;
+			gotaction = 1;
 			if (!strcmp(optarg, "-"))
 				u.f = stdin;
 			else
@@ -368,13 +376,21 @@ int main(int argc, char **argv)
 			if (strcmp(optarg, "-"))
 				fclose(u.f);
 			break;
+		case 'c':
+			gotaction = 1;
+			if (libxsvf_play(&h, LIBXSVF_MODE_SCAN) < 0) {
+				fprintf(stderr, "Error while scanning JTAG chain.\n");
+				rc = 1;
+			}
+			break;
+			
 		default:
 			help();
 			break;
 		}
 	}
 
-	if (!gotfiles)
+	if (!gotaction)
 		help();
 
 	if (u.retval_i) {

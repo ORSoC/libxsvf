@@ -56,7 +56,8 @@ CPLD devices.
 Often one wants to use an embedded host processor or microcontroller
 to access the JTAG interface on an embedded device instead of using
 an external JTAG probe. This library can be used to implement such a
-solution.
+solution. In addition to playing SVF and XSVF files this library is
+also capable of scanning the devices in JTAG chain.
 
 Lib(X)SVF is free software licensed under the BSD license.
 
@@ -154,8 +155,8 @@ be set to implementations of the following functions:
 	  This step may be ignored if the RMASK feature (see "Limitations
 	  and non-standard extensions" above) is not used.
 	
-	The function must return 0 if everything went fine or -1 on a
-	TDO-mismatch-error.
+	The function must return the current value of the tdo line, or -1 on
+	a TDO-mismatch-error.
 
   void pulse_sck(struct libxsvf_host *h);
 
@@ -188,6 +189,14 @@ be set to implementations of the following functions:
 
 	This function pointer is optional (may be set to NULL)
 	and is for debugging purposes only.
+
+  void report_device(struct libxsvf_host *h, unsigned long idcode);
+
+	This function is called in scan mode for each device found
+	in the JTAG chain.
+
+	This function pointer is optional (may be set to NULL)
+	and is only called in the SCAN mode.
 
   void report_status(struct libxsvf_host *h, const char *message);
 
@@ -222,7 +231,8 @@ be set to implementations of the following functions:
 
 After such a struct is prepared, the function libxsvf_play()
 can be called, passing the libxsvf_host struct as first and the
-mode (LIBXSVF_MODE_SVF or LIBXSVF_MODE_XSVF) as second argument.
+mode (LIBXSVF_MODE_SVF, LIBXSVF_MODE_XSVF or LIBXSVF_MODE_SCAN)
+as second argument.
 
 Example given:
 
@@ -253,9 +263,10 @@ to fit your needs.
 Stripping down libxsvf
 ----------------------
 
-It is possible to disable SVF or XSVF support by setting the
-LIBXSVF_WITHOUT_SVF or LIBXSVF_WITHOUT_XSVF define. In this cases
-one would not want to link against svf.o or xsvf.o.
+It is possible to disable SVF, XSVF and/or SCAN support by setting the
+LIBXSVF_WITHOUT_SVF, LIBXSVF_WITHOUT_XSVF or LIBXSVF_WITHOUT_SCAN
+define. In this cases one would not want to link against svf.o, xsvf.o
+or scan.o.
 
 One does not need to link agains statename.o and memname.o if the
 libxsvf_state2str() and libxsvf_mem2str() functions is not needed.

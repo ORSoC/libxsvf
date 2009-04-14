@@ -26,40 +26,37 @@
 
 #include "libxsvf.h"
 
-int libxsvf_play(struct libxsvf_host *h, enum libxsvf_mode mode)
+int libxsvf_scan(struct libxsvf_host *h)
 {
-	int rc = -1;
+	if (libxsvf_tap_walk(h, LIBXSVF_TAP_RESET) < 0)
+		return -1;
 
-	h->tap_state = LIBXSVF_TAP_INIT;
-	LIBXSVF_HOST_SETUP();
+	if (libxsvf_tap_walk(h, LIBXSVF_TAP_DRSHIFT) < 0)
+		return -1;
 
-	if (mode == LIBXSVF_MODE_SVF) {
-#ifdef LIBXSVF_WITHOUT_SVF
-		LIBXSVF_HOST_REPORT_ERROR("SVF support in libxsvf is disabled.");
-#else
-		rc = libxsvf_svf(h);
-#endif
+	for (int i=0; i<256; i++)
+	{
+		int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0);
+
+		if (bit < 0)
+			return -1;
+
+		if (bit == 0) {
+			LIBXSVF_HOST_REPORT_DEVICE(0);
+		} else {
+			unsigned long idcode = 1;
+			for (int j=1; j<32; j++) {
+				int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0);
+				if (bit < 0)
+					return -1;
+				idcode |= bit << j;
+			}
+			if (idcode == 0xffffffff)
+				break;
+			LIBXSVF_HOST_REPORT_DEVICE(idcode);
+		}
 	}
 
-	if (mode == LIBXSVF_MODE_XSVF) {
-#ifdef LIBXSVF_WITHOUT_XSVF
-		LIBXSVF_HOST_REPORT_ERROR("XSVF support in libxsvf is disabled.");
-#else
-		rc = libxsvf_xsvf(h);
-#endif
-	}
-
-	if (mode == LIBXSVF_MODE_SCAN) {
-#ifdef LIBXSVF_WITHOUT_SCAN
-		LIBXSVF_HOST_REPORT_ERROR("SCAN support in libxsvf is disabled.");
-#else
-		rc = libxsvf_scan(h);
-#endif
-	}
-
-	libxsvf_tap_walk(h, LIBXSVF_TAP_RESET);
-	LIBXSVF_HOST_SHUTDOWN();
-
-	return rc;
+	return 0;
 }
 

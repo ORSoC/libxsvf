@@ -313,7 +313,7 @@ static int bitdata_play(struct libxsvf_host *h, struct bitdata_s *bd, enum libxs
 			tdo = getbit(bd->tdo_data, i);
 		int rmask = bd->ret_mask && getbit(bd->ret_mask, i);
 		if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, rmask) < 0)
-			tdo_error = 0;
+			tdo_error = 1;
 	}
 
 	if (tms)
