@@ -8,10 +8,6 @@ http://svn.clifford.at/libxsvf/trunk/
 You also might want to have a look at the project homepage:
 http://www.clifford.at/libxsvf/
 
-WARNING: This library is work in progress! If you need it for anything
-important: Check again in a few weeks when it is stable and I have made
-a real release.
-
 Please send bug reports and fixes to <clifford@clifford.at>.
 
 
@@ -268,11 +264,11 @@ Stripping down libxsvf
 
 It is possible to disable SVF, XSVF and/or SCAN support by setting the
 LIBXSVF_WITHOUT_SVF, LIBXSVF_WITHOUT_XSVF or LIBXSVF_WITHOUT_SCAN
-define. In this cases one would not want to link against svf.o, xsvf.o
+defines. In this cases one would not want to link against svf.o, xsvf.o
 or scan.o.
 
 One does not need to link agains statename.o and memname.o if the
-libxsvf_state2str() and libxsvf_mem2str() functions is not needed.
+libxsvf_state2str() and libxsvf_mem2str() functions are not needed.
 Usually this functions are used for debugging purposes only.
 
 It is possible to modify the LIBXSVF_HOST_REPORT_STATUS() and
