@@ -5,6 +5,9 @@ Lib(X)SVF  -  A library for implementing SVF and XSVF JTAG players
 Please check the subversion repository for updates:
 http://svn.clifford.at/libxsvf/trunk/
 
+You also might want to have a look at the project homepage:
+http://www.clifford.at/libxsvf/
+
 WARNING: This library is work in progress! If you need it for anything
 important: Check again in a few weeks when it is stable and I have made
 a real release.
@@ -57,7 +60,7 @@ Often one wants to use an embedded host processor or microcontroller
 to access the JTAG interface on an embedded device instead of using
 an external JTAG probe. This library can be used to implement such a
 solution. In addition to playing SVF and XSVF files this library is
-also capable of scanning the devices in JTAG chain.
+also capable of scanning the devices in the JTAG chain.
 
 Lib(X)SVF is free software licensed under the BSD license.
 
