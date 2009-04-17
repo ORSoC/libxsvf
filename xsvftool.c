@@ -185,6 +185,9 @@ static int io_tdo()
 struct udata_s {
 	FILE *f;
 	int verbose;
+	int clockcount;
+	int bitcount_tdi;
+	int bitcount_tdo;
 	int retval_i;
 	int retval[256];
 };
@@ -192,7 +195,7 @@ struct udata_s {
 static void h_setup(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 1) {
+	if (u->verbose >= 2) {
 		fprintf(stderr, "[SETUP]\n");
 		fflush(stderr);
 	}
@@ -202,7 +205,7 @@ static void h_setup(struct libxsvf_host *h)
 static void h_shutdown(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 1) {
+	if (u->verbose >= 2) {
 		fprintf(stderr, "[SHUTDOWN]\n");
 		fflush(stderr);
 	}
@@ -212,7 +215,7 @@ static void h_shutdown(struct libxsvf_host *h)
 static void h_udelay(struct libxsvf_host *h, long usecs)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 2) {
+	if (u->verbose >= 3) {
 		fprintf(stderr, "[DELAY:%ld]\n", usecs);
 		fflush(stderr);
 	}
@@ -231,8 +234,10 @@ static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rm
 
 	io_tms(tms);
 
-	if (tdi >= 0)
+	if (tdi >= 0) {
+		u->bitcount_tdi++;
 		io_tdi(tdi);
+	}
 
 	io_tck(0);
 	io_tck(1);
@@ -243,20 +248,24 @@ static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rm
 	if (rmask == 1 && u->retval_i < 256)
 		u->retval[u->retval_i++] = line_tdo;
 
-	if (tdo >= 0 && line_tdo >= 0 && tdo != line_tdo)
-		rc = -1;
+	if (tdo >= 0 && line_tdo >= 0) {
+		u->bitcount_tdo++;
+		if (tdo != line_tdo)
+			rc = -1;
+	}
 
-	if (u->verbose >= 3) {
+	if (u->verbose >= 4) {
 		fprintf(stderr, "[TMS:%d, TDI:%d, TDO_ARG:%d, TDO_LINE:%d, RMASK:%d, RC:%d]\n", tms, tdi, tdo, line_tdo, rmask, rc);
 	}
 
+	u->clockcount++;
 	return rc;
 }
 
 static void h_pulse_sck(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 3) {
+	if (u->verbose >= 4) {
 		fprintf(stderr, "[SCK]\n");
 	}
 	io_sck(0);
@@ -266,7 +275,7 @@ static void h_pulse_sck(struct libxsvf_host *h)
 static void h_set_trst(struct libxsvf_host *h, int v)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 3) {
+	if (u->verbose >= 4) {
 		fprintf(stderr, "[TRST:%d]\n", v);
 	}
 	io_trst(v);
@@ -275,7 +284,7 @@ static void h_set_trst(struct libxsvf_host *h, int v)
 static void h_report_tapstate(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 2) {
+	if (u->verbose >= 3) {
 		fprintf(stderr, "[%s]\n", libxsvf_state2str(h->tap_state));
 	}
 }
@@ -290,7 +299,7 @@ static void h_report_device(struct libxsvf_host *h, unsigned long idcode)
 static void h_report_status(struct libxsvf_host *h, const char *message)
 {
 	struct udata_s *u = h->user_data;
-	if (u->verbose >= 1) {
+	if (u->verbose >= 2) {
 		fprintf(stderr, "[STATUS] %s\n", message);
 	}
 }
@@ -307,7 +316,7 @@ static void *h_realloc(struct libxsvf_host *h, void *ptr, int size, enum libxsvf
 	struct udata_s *u = h->user_data;
 	if (size > realloc_maxsize[which])
 		realloc_maxsize[which] = size;
-	if (u->verbose >= 2) {
+	if (u->verbose >= 3) {
 		fprintf(stderr, "[REALLOC:%s:%d]\n", libxsvf_mem2str(which), size);
 	}
 	return realloc(ptr, size);
@@ -333,15 +342,28 @@ static struct libxsvf_host h = {
 
 const char *progname;
 
+static void copyleft()
+{
+	static int already_printed = 0;
+	if (already_printed)
+		return;
+	fprintf(stderr, "xsvftool, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
+	fprintf(stderr, "Copyright (C) 2009  RIEGL Research ForschungsGmbH\n");
+	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
+	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
+	already_printed = 1;
+}
+
 static void help()
 {
+	copyleft();
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage: %s [ -r funcname ] [ -v ... ] [ -L | -B ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -r funcname\n");
 	fprintf(stderr, "          Dump C-code for pseudo-allocator based on example files\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "   -v, -vv, -vvv\n");
+	fprintf(stderr, "   -v, -vv, -vvv, -vvvv\n");
 	fprintf(stderr, "          Verbose, more verbose and even more verbose\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -L, -B\n");
@@ -376,11 +398,14 @@ int main(int argc, char **argv)
 			realloc_name = optarg;
 			break;
 		case 'v':
+			copyleft();
 			u.verbose++;
 			break;
 		case 'x':
 		case 's':
 			gotaction = 1;
+			if (u.verbose)
+				fprintf(stderr, "Playing %s file `%s'.\n", opt == 's' ? "SVF" : "XSVF", optarg);
 			if (!strcmp(optarg, "-"))
 				u.f = stdin;
 			else
@@ -418,6 +443,17 @@ int main(int argc, char **argv)
 
 	if (!gotaction)
 		help();
+
+	if (u.verbose) {
+		fprintf(stderr, "Total number of clock cycles: %d\n", u.clockcount);
+		fprintf(stderr, "Number of significant TDI bits: %d\n", u.bitcount_tdi);
+		fprintf(stderr, "Number of significant TDO bits: %d\n", u.bitcount_tdo);
+		if (rc == 0) {
+			fprintf(stderr, "Finished without errors.\n");
+		} else {
+			fprintf(stderr, "Finished with errors!\n");
+		}
+	}
 
 	if (u.retval_i) {
 		if (hex_mode) {
