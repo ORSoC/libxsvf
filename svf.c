@@ -458,18 +458,18 @@ int libxsvf_svf(struct libxsvf_host *h)
 			if (max_time >= 0) {
 				LIBXSVF_HOST_REPORT_ERROR("WARNING: Maximum time in SVF RUNTEST command is ignored.");
 			}
-			if (tck_count >= 0) {
-				for (int i=0; i < tck_count; i++) {
-					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0);
-				}
-			}
 			if (sck_count >= 0) {
 				for (int i=0; i < sck_count; i++) {
 					LIBXSVF_HOST_PULSE_SCK();
 				}
 			}
 			if (min_time >= 0) {
-				LIBXSVF_HOST_UDELAY(min_time * 1000000);
+				LIBXSVF_HOST_UDELAY(min_time * 1000000, 0, tck_count >= 0 ? tck_count : 0);
+			}
+			else if (tck_count >= 0) {
+				for (int i=0; i < tck_count; i++) {
+					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0);
+				}
 			}
 			goto eol_check;
 		}

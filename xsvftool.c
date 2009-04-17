@@ -26,6 +26,7 @@
 
 #include "libxsvf.h"
 
+#include <sys/time.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
@@ -97,18 +98,15 @@ static void io_setup(void)
 	io_opendrain->tck = 0;
 	io_opendrain->tdo = 0;
 	io_opendrain->tdi = 0;
-
-	/* init */
-	io_data->tms = 1;
-	io_data->tck = 0;
-	io_data->tdi = 0;
 }
 
 static void io_shutdown(void)
 {
-	io_data->tms = 1;
-	io_data->tck = 0;
-	io_data->tdi = 0;
+	/* set all to z-state */
+	io_direction->tms = 0;
+	io_direction->tck = 0;
+	io_direction->tdo = 0;
+	io_direction->tdi = 0;
 }
 
 static void io_tms(int val)
@@ -212,14 +210,36 @@ static void h_shutdown(struct libxsvf_host *h)
 	io_shutdown();
 }
 
-static void h_udelay(struct libxsvf_host *h, long usecs)
+static void h_udelay(struct libxsvf_host *h, long usecs, int tms, long num_tck)
 {
 	struct udata_s *u = h->user_data;
 	if (u->verbose >= 3) {
-		fprintf(stderr, "[DELAY:%ld]\n", usecs);
+		fprintf(stderr, "[DELAY:%ld, TMS:%d, NUM_TCK:%ld]\n", usecs, tms, num_tck);
 		fflush(stderr);
 	}
-	usleep(usecs);
+	if (num_tck > 0) {
+		struct timeval tv1, tv2;
+		gettimeofday(&tv1, NULL);
+		io_tms(tms);
+		while (num_tck > 0) {
+			io_tck(0);
+			io_tck(1);
+			num_tck--;
+		}
+		gettimeofday(&tv2, NULL);
+		if (tv2.tv_sec > tv1.tv_sec) {
+			usecs -= (1000000 - tv1.tv_usec) + (tv2.tv_sec - tv1.tv_sec - 1) * 1000000;
+			tv1.tv_usec = 0;
+		}
+		usecs -= tv2.tv_usec - tv1.tv_usec;
+		if (u->verbose >= 3) {
+			fprintf(stderr, "[DELAY_AFTER_TCK:%ld]\n", usecs > 0 ? usecs : 0);
+			fflush(stderr);
+		}
+	}
+	if (usecs > 0) {
+		usleep(usecs);
+	}
 }
 
 static int h_getbyte(struct libxsvf_host *h)

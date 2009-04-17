@@ -207,7 +207,7 @@ static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char 
 	
 		if (edelay) {
 			TAP(LIBXSVF_TAP_IDLE);
-			LIBXSVF_HOST_UDELAY(edelay);
+			LIBXSVF_HOST_UDELAY(edelay, 0, edelay);
 		} else {
 			TAP(estate);
 		}
@@ -434,7 +434,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			unsigned char state2 = READ_BYTE();
 			long usecs = READ_LONG();
 			TAP(xilinx_tap(state1));
-			LIBXSVF_HOST_UDELAY(usecs);
+			LIBXSVF_HOST_UDELAY(usecs, 0, 0);
 			TAP(xilinx_tap(state2));
 			break;
 		  }

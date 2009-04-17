@@ -28,32 +28,32 @@
 #define LIBXSVF_H
 
 enum libxsvf_mode {
-	LIBXSVF_MODE_SVF,
-	LIBXSVF_MODE_XSVF,
-	LIBXSVF_MODE_SCAN
+	LIBXSVF_MODE_SVF = 1,
+	LIBXSVF_MODE_XSVF = 2,
+	LIBXSVF_MODE_SCAN = 3
 };
 
 enum libxsvf_tap_state {
 	/* Special States */
-	LIBXSVF_TAP_INIT,
-	LIBXSVF_TAP_RESET,
-	LIBXSVF_TAP_IDLE,
+	LIBXSVF_TAP_INIT = 0,
+	LIBXSVF_TAP_RESET = 1,
+	LIBXSVF_TAP_IDLE = 2,
 	/* DR States */
-	LIBXSVF_TAP_DRSELECT,
-	LIBXSVF_TAP_DRCAPTURE,
-	LIBXSVF_TAP_DRSHIFT,
-	LIBXSVF_TAP_DREXIT1,
-	LIBXSVF_TAP_DRPAUSE,
-	LIBXSVF_TAP_DREXIT2,
-	LIBXSVF_TAP_DRUPDATE,
+	LIBXSVF_TAP_DRSELECT = 3,
+	LIBXSVF_TAP_DRCAPTURE = 4,
+	LIBXSVF_TAP_DRSHIFT = 5,
+	LIBXSVF_TAP_DREXIT1 = 6,
+	LIBXSVF_TAP_DRPAUSE = 7,
+	LIBXSVF_TAP_DREXIT2 = 8,
+	LIBXSVF_TAP_DRUPDATE = 9,
 	/* IR States */
-	LIBXSVF_TAP_IRSELECT,
-	LIBXSVF_TAP_IRCAPTURE,
-	LIBXSVF_TAP_IRSHIFT,
-	LIBXSVF_TAP_IREXIT1,
-	LIBXSVF_TAP_IRPAUSE,
-	LIBXSVF_TAP_IREXIT2,
-	LIBXSVF_TAP_IRUPDATE
+	LIBXSVF_TAP_IRSELECT = 10,
+	LIBXSVF_TAP_IRCAPTURE = 11,
+	LIBXSVF_TAP_IRSHIFT = 12,
+	LIBXSVF_TAP_IREXIT1 = 13,
+	LIBXSVF_TAP_IRPAUSE = 14,
+	LIBXSVF_TAP_IREXIT2 = 15,
+	LIBXSVF_TAP_IRUPDATE = 16
 };
 
 enum libxsvf_mem {
@@ -99,7 +99,7 @@ enum libxsvf_mem {
 struct libxsvf_host {
 	void (*setup)(struct libxsvf_host *h);
 	void (*shutdown)(struct libxsvf_host *h);
-	void (*udelay)(struct libxsvf_host *h, long usecs);
+	void (*udelay)(struct libxsvf_host *h, long usecs, int tms, long num_tck);
 	int (*getbyte)(struct libxsvf_host *h);
 	int (*pulse_tck)(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask);
 	void (*pulse_sck)(struct libxsvf_host *h);
@@ -126,7 +126,7 @@ int libxsvf_tap_walk(struct libxsvf_host *, enum libxsvf_tap_state);
 /* Host accessor macros (see README) */
 #define LIBXSVF_HOST_SETUP() h->setup(h)
 #define LIBXSVF_HOST_SHUTDOWN() h->shutdown(h)
-#define LIBXSVF_HOST_UDELAY(_usecs) h->udelay(h, _usecs)
+#define LIBXSVF_HOST_UDELAY(_usecs, _tms, _num_tck) h->udelay(h, _usecs, _tms, _num_tck)
 #define LIBXSVF_HOST_GETBYTE() h->getbyte(h)
 #define LIBXSVF_HOST_PULSE_TCK(_tms, _tdi, _tdo, _rmask) h->pulse_tck(h, _tms, _tdi, _tdo, _rmask)
 #define LIBXSVF_HOST_PULSE_SCK() do { if (h->pulse_sck) h->pulse_sck(h); } while (0)
