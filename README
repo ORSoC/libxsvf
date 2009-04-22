@@ -58,7 +58,8 @@ an external JTAG probe. This library can be used to implement such a
 solution. In addition to playing SVF and XSVF files this library is
 also capable of scanning the devices in the JTAG chain.
 
-Lib(X)SVF is free software licensed under the BSD license.
+Lib(X)SVF is free software licensed under the BSD license (the GPL
+compatible version without advertising clause).
 
 [1] http://en.wikipedia.org/wiki/JTAG
 [2] http://www.fpga4fun.com/JTAG.html
