@@ -98,6 +98,13 @@ static void io_setup(void)
 	io_opendrain->tck = 0;
 	io_opendrain->tdo = 0;
 	io_opendrain->tdi = 0;
+
+#ifdef HAVE_TRST
+	/* for boards with TRST, must be driven high */
+	io_data->trst = 1;
+	io_direction->trst = 1;
+	io_opendrain->trst = 0;
+#endif
 }
 
 static void io_shutdown(void)
@@ -107,6 +114,11 @@ static void io_shutdown(void)
 	io_direction->tck = 0;
 	io_direction->tdo = 0;
 	io_direction->tdi = 0;
+
+#ifdef HAVE_TRST
+	/* for boards with TRST, assuming there is a pull-down resistor */
+	io_direction->trst = 0;
+#endif
 }
 
 static void io_tms(int val)
