@@ -104,6 +104,7 @@ struct libxsvf_host {
 	int (*pulse_tck)(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask);
 	void (*pulse_sck)(struct libxsvf_host *h);
 	void (*set_trst)(struct libxsvf_host *h, int v);
+	int (*set_frequency)(struct libxsvf_host *h, int v);
 	void (*report_tapstate)(struct libxsvf_host *h);
 	void (*report_device)(struct libxsvf_host *h, unsigned long idcode);
 	void (*report_status)(struct libxsvf_host *h, const char *message);
@@ -131,6 +132,7 @@ int libxsvf_tap_walk(struct libxsvf_host *, enum libxsvf_tap_state);
 #define LIBXSVF_HOST_PULSE_TCK(_tms, _tdi, _tdo, _rmask) h->pulse_tck(h, _tms, _tdi, _tdo, _rmask)
 #define LIBXSVF_HOST_PULSE_SCK() do { if (h->pulse_sck) h->pulse_sck(h); } while (0)
 #define LIBXSVF_HOST_SET_TRST(_v) do { if (h->set_trst) h->set_trst(h, _v); } while (0)
+#define LIBXSVF_HOST_SET_FREQUENCY(_v) (h->set_frequency ? h->set_frequency(h, _v) : -1)
 #define LIBXSVF_HOST_REPORT_TAPSTATE() do { if (h->report_tapstate) h->report_tapstate(h); } while (0)
 #define LIBXSVF_HOST_REPORT_DEVICE(_v) do { if (h->report_device) h->report_device(h, _v); } while (0)
 #define LIBXSVF_HOST_REPORT_STATUS(_msg) do { if (h->report_status) h->report_status(h, _msg); } while (0)

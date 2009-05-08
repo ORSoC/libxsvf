@@ -374,7 +374,33 @@ int libxsvf_svf(struct libxsvf_host *h)
 		}
 
 		if (!strtokencmp(p, "FREQUENCY")) {
-			goto unsupported_error;
+			unsigned long number = 0;
+			int exp = 0;
+			p += strtokenskip(p);
+			if (*p < '0' || *p > '9')
+				goto syntax_error;
+			while (*p >= '0' && *p <= '9') {
+				number = number*10 + (*p - '0');
+				p++;
+			}
+			if(*p == 'E' || *p == 'e') {
+				p++;
+				while (*p >= '0' && *p <= '9') {
+					exp = exp*10 + (*p - '0');
+					p++;
+				}
+				for(int i=0; i<exp; i++)
+					number *= 10;
+			}
+			while (*p == ' ') {
+				p++;
+			}
+			p += strtokenskip(p);
+			if (LIBXSVF_HOST_SET_FREQUENCY(number) < 0) {
+				LIBXSVF_HOST_REPORT_ERROR("FREQUENCY command failed!");
+				goto error;
+			}
+			goto eol_check;
 		}
 
 		if (!strtokencmp(p, "HDR")) {
@@ -426,9 +452,43 @@ int libxsvf_svf(struct libxsvf_host *h)
 				if (*p < '0' || *p > '9')
 					goto syntax_error;
 				int number = 0;
+				int exp = 0, expsign = 1;
+				int number_e6, exp_e6;
 				while (*p >= '0' && *p <= '9') {
 					number = number*10 + (*p - '0');
 					p++;
+				}
+				if(*p == 'E' || *p == 'e') {
+					p++;
+					if(*p == '-') {
+						expsign = -1;
+						p++;
+					}
+					while (*p >= '0' && *p <= '9') {
+						exp = exp*10 + (*p - '0');
+						p++;
+					}
+					exp = exp * expsign;
+					number_e6 = number;
+					exp_e6 = exp + 6;
+					while (exp < 0) {
+						number /= 10;
+						exp++;
+					}
+					while (exp > 0) {
+						number *= 10;
+						exp--;
+					}
+					while (exp_e6 < 0) {
+						number_e6 /= 10;
+						exp_e6++;
+					}
+					while (exp_e6 > 0) {
+						number_e6 *= 10;
+						exp_e6--;
+					}
+				} else {
+					number_e6 = number * 1000000;
 				}
 				while (*p == ' ') {
 					p++;
@@ -436,9 +496,9 @@ int libxsvf_svf(struct libxsvf_host *h)
 				if (!strtokencmp(p, "SEC")) {
 					p += strtokenskip(p);
 					if (got_maximum)
-						max_time = number;
+						max_time = number_e6;
 					else
-						min_time = number;
+						min_time = number_e6;
 					continue;
 				}
 				if (!strtokencmp(p, "TCK")) {
@@ -464,7 +524,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 				}
 			}
 			if (min_time >= 0) {
-				LIBXSVF_HOST_UDELAY(min_time * 1000000, 0, tck_count >= 0 ? tck_count : 0);
+				LIBXSVF_HOST_UDELAY(min_time, 0, tck_count >= 0 ? tck_count : 0);
 			}
 			else if (tck_count >= 0) {
 				for (int i=0; i < tck_count; i++) {

@@ -313,6 +313,12 @@ static void h_set_trst(struct libxsvf_host *h, int v)
 	io_trst(v);
 }
 
+static int h_set_frequency(struct libxsvf_host *h, int v)
+{
+	fprintf(stderr, "WARNING: Setting JTAG clock frequency to %d ignored!\n", v);
+	return 0;
+}
+
 static void h_report_tapstate(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
@@ -364,6 +370,7 @@ static struct libxsvf_host h = {
 	.pulse_tck = h_pulse_tck,
 	.pulse_sck = h_pulse_sck,
 	.set_trst = h_set_trst,
+	.set_frequency = h_set_frequency,
 	.report_tapstate = h_report_tapstate,
 	.report_device = h_report_device,
 	.report_status = h_report_status,

@@ -71,8 +71,8 @@ compatible version without advertising clause).
 Limitations and non-standard extensions
 ---------------------------------------
 
-The SVF commands 'FREQUENCY', 'PIO' and 'PIOMAP' are unsupported. Any
-use of this commands in an SVF input file is reported as error.
+The SVF commands 'PIO' and 'PIOMAP' are unsupported. Any use of this
+commands in an SVF input file is reported as error.
 
 The SVF 'RUNTEST' command is implemented in a limited manner: The
 'MAXIMUM' time parameter is ignored. Combining 'SCK' with a time
@@ -203,6 +203,16 @@ be set to implementations of the following functions:
 	be set to a NULL pointer on implementations without an
 	TRST line. In this cases an SVF 'TRST' command has no
 	effect.
+
+  int set_frequency(struct libxsvf_host *h, int v);
+
+	A function to set the JTAG CLK frequency to the specified
+	value in Hz. This functions should return 0 when setting
+	the frequency was successful and -1 on error. 
+
+	This function pointer is optional (may be set to NULL).
+	In this case an SVF FREQUENCY command always results in
+	an error.
 
   void report_tapstate(struct libxsvf_host *h);
 
