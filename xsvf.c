@@ -57,8 +57,8 @@ enum xsvf_cmd {
 #define VAL_CLOSE )
 
 #define READ_BITS(_buf, _len) do {                                          \
-	unsigned char *_p = _buf;                                           \
-	for (int _i=0; _i<(_len); _i+=8) {                                  \
+	unsigned char *_p = _buf; int _i;                                   \
+	for (_i=0; _i<(_len); _i+=8) {                                      \
 		int tmp = LIBXSVF_HOST_GETBYTE();                           \
 		if (tmp < 0) {                                              \
 			LIBXSVF_HOST_REPORT_ERROR("Unexpected EOF.");       \
@@ -69,8 +69,8 @@ enum xsvf_cmd {
 } while (0)
 
 #define READ_LONG() VAL_OPEN{                                               \
-	long _buf = 0;                                                      \
-	for (int _i=0; _i<4; _i++) {                                        \
+	long _buf = 0; int _i;                                              \
+	for (_i=0; _i<4; _i++) {                                            \
 		int tmp = LIBXSVF_HOST_GETBYTE();                           \
 		if (tmp < 0) {                                              \
 			LIBXSVF_HOST_REPORT_ERROR("Unexpected EOF.");       \
@@ -180,6 +180,7 @@ static int xilinx_tap(int state)
 static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char *outp, unsigned char *maskp, int len, enum libxsvf_tap_state state, enum libxsvf_tap_state estate, int edelay, int retries)
 {
 	int left_padding = (8 - len % 8) % 8;
+	int i;
 
 	while (1)
 	{
@@ -189,7 +190,7 @@ static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char 
 		TAP(state);
 		tms = 0;
 
-		for (int i=len+left_padding-1; i>=left_padding; i--) {
+		for (i=len+left_padding-1; i>=left_padding; i--) {
 			if (i == left_padding && h->tap_state != estate) {
 				h->tap_state++;
 				tms = 1;
@@ -230,6 +231,7 @@ error:
 int libxsvf_xsvf(struct libxsvf_host *h)
 {
 	int rc = 0;
+	int i, j;
 
 	unsigned char *buf_tdi_data = (void*)0;
 	unsigned char *buf_tdo_data = (void*)0;
@@ -317,7 +319,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			READ_BITS(buf_addr_mask, state_dr_size);
 			READ_BITS(buf_data_mask, state_dr_size);
 			state_data_size = 0;
-			for (int i=0; i<state_dr_size; i++)
+			for (i=0; i<state_dr_size; i++)
 				state_data_size += getbit(buf_data_mask, i);
 			break;
 		  }
@@ -331,7 +333,8 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 						state_runtest, state_retries);
 				if (num-- <= 0)
 					break;
-				for (int i=state_dr_size-1, carry=1; i>=0; i--) {
+				int carry = 1;
+				for (i=state_dr_size-1; i>=0; i--) {
 					if (getbit(buf_addr_mask, i) == 0)
 						continue;
 					if (getbit(buf_tdi_data, i)) {
@@ -342,7 +345,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 					}
 				}
 				unsigned char this_byte = 0;
-				for (int i=0, j=0; i<state_data_size; i++) {
+				for (i=0, j=0; i<state_data_size; i++) {
 					if (i%8 == 0)
 						this_byte = READ_BYTE();
 					while (getbit(buf_data_mask, j) == 0)

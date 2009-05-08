@@ -176,6 +176,7 @@ static int hex(char ch)
 
 static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct bitdata_s *bd, int offset)
 {
+	int i, j;
 	bd->len = 0;
 	while (*p >= '0' && *p <= '9') {
 		bd->len = bd->len * 10 + (*p - '0');
@@ -229,7 +230,7 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 		}
 
 		unsigned char *d = *dp;
-		for (int i=0; i<bd->alloced_bytes; i++)
+		for (i=0; i<bd->alloced_bytes; i++)
 			d[i] = 0;
 
 		if (*p != '(')
@@ -237,11 +238,11 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 		p++;
 
 		int hexdigits = 0;
-		for (int i=0; (p[i] >= 'A' && p[i] <= 'F') || (p[i] >= '0' && p[i] <= '9'); i++)
+		for (i=0; (p[i] >= 'A' && p[i] <= 'F') || (p[i] >= '0' && p[i] <= '9'); i++)
 			hexdigits++;
 
-		int i = bd->alloced_bytes*2 - hexdigits;
-		for (int j=0; j<hexdigits; j++, i++, p++) {
+		i = bd->alloced_bytes*2 - hexdigits;
+		for (j=0; j<hexdigits; j++, i++, p++) {
 			if (i%2 == 0) {
 				d[i/2] |= hex(*p) << 4;
 			} else {
@@ -261,25 +262,25 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 	printf("--- Parsed bitdata [%d] ---\n", bd->len);
 	if (bd->tdi_data) {
 		printf("TDI DATA:");
-		for (int i=0; i<bd->alloced_bytes; i++)
+		for (i=0; i<bd->alloced_bytes; i++)
 			printf(" %02x", bd->tdi_data[i]);
 		printf("\n");
 	}
 	if (bd->tdo_data) {
 		printf("TDO DATA:");
-		for (int i=0; i<bd->alloced_bytes; i++)
+		for (i=0; i<bd->alloced_bytes; i++)
 			printf(" %02x", bd->tdo_data[i]);
 		printf("\n");
 	}
 	if (bd->tdi_mask) {
 		printf("TDI MASK:");
-		for (int i=0; i<bd->alloced_bytes; i++)
+		for (i=0; i<bd->alloced_bytes; i++)
 			printf(" %02x", bd->tdi_mask[i]);
 		printf("\n");
 	}
 	if (bd->tdo_mask) {
 		printf("TDO MASK:");
-		for (int i=0; i<bd->alloced_bytes; i++)
+		for (i=0; i<bd->alloced_bytes; i++)
 			printf(" %02x", bd->tdo_mask[i]);
 		printf("\n");
 	}
@@ -297,8 +298,9 @@ static int bitdata_play(struct libxsvf_host *h, struct bitdata_s *bd, enum libxs
 	int left_padding = (8 - bd->len % 8) % 8;
 	int tdo_error = 0;
 	int tms = 0;
+	int i;
 
-	for (int i=bd->len+left_padding-1; i >= left_padding; i--) {
+	for (i=bd->len+left_padding-1; i >= left_padding; i--) {
 		if (i == left_padding && h->tap_state != estate) {
 			h->tap_state++;
 			tms = 1;
@@ -330,7 +332,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 {
 	char *command_buffer = (void*)0;
 	int command_buffer_len = 0;
-	int rc;
+	int rc, i;
 
 	struct bitdata_s bd_hdr = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
 	struct bitdata_s bd_hir = { 0, 0, 0, (void*)0, (void*)0, (void*)0, (void*)0, (void*)0 };
@@ -389,7 +391,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 					exp = exp*10 + (*p - '0');
 					p++;
 				}
-				for(int i=0; i<exp; i++)
+				for(i=0; i<exp; i++)
 					number *= 10;
 			}
 			while (*p == ' ') {
@@ -519,7 +521,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 				LIBXSVF_HOST_REPORT_ERROR("WARNING: Maximum time in SVF RUNTEST command is ignored.");
 			}
 			if (sck_count >= 0) {
-				for (int i=0; i < sck_count; i++) {
+				for (i=0; i < sck_count; i++) {
 					LIBXSVF_HOST_PULSE_SCK();
 				}
 			}
@@ -527,7 +529,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 				LIBXSVF_HOST_UDELAY(min_time, 0, tck_count >= 0 ? tck_count : 0);
 			}
 			else if (tck_count >= 0) {
-				for (int i=0; i < tck_count; i++) {
+				for (i=0; i < tck_count; i++) {
 					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0);
 				}
 			}

@@ -24,7 +24,7 @@
 #CC = ppc_6xx-gcc
 #CFLAGS += -DXSVFTOOL_RLMS_VLINE
 
-CFLAGS += -Wall -Os -ggdb -std=gnu99 -MD
+CFLAGS += -Wall -Os -ggdb -MD
 #CFLAGS += -Wextra -Wno-unused-parameter -Werror
 
 xsvftool: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o xsvftool.o

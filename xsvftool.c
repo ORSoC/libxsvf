@@ -426,7 +426,7 @@ int main(int argc, char **argv)
 	int gotaction = 0;
 	int hex_mode = 0;
 	const char *realloc_name = NULL;
-	int opt;
+	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xvsftool";
 	while ((opt = getopt(argc, argv, "r:vLBx:s:c")) != -1)
@@ -497,15 +497,15 @@ int main(int argc, char **argv)
 	if (u.retval_i) {
 		if (hex_mode) {
 			printf("0x");
-			for (int i=0; i < u.retval_i; i+=4) {
+			for (i=0; i < u.retval_i; i+=4) {
 				int val = 0;
-				for (int j=i; j<i+4; j++)
+				for (j=i; j<i+4; j++)
 					val = val << 1 | u.retval[hex_mode > 1 ? j : u.retval_i - j - 1];
 				printf("%x", val);
 			}
 		} else {
 			printf("%d rmask bits:", u.retval_i);
-			for (int i=0; i < u.retval_i; i++)
+			for (i=0; i < u.retval_i; i++)
 				printf(" %d", u.retval[i]);
 		}
 		printf("\n");
@@ -513,24 +513,24 @@ int main(int argc, char **argv)
 
 	if (realloc_name) {
 		int num = 0;
-		for (int i = 0; i < LIBXSVF_MEM_NUM; i++) {
+		for (i = 0; i < LIBXSVF_MEM_NUM; i++) {
 			if (realloc_maxsize[i] > 0)
 				num = i+1;
 		}
 		printf("void *%s(void *h, void *ptr, int size, int which) {\n", realloc_name);
-		for (int i = 0; i < num; i++) {
+		for (i = 0; i < num; i++) {
 			if (realloc_maxsize[i] > 0)
 				printf("\tstatic unsigned char buf_%s[%d];\n", libxsvf_mem2str(i), realloc_maxsize[i]);
 		}
 		printf("\tstatic unsigned char *buflist[%d] = {", num);
-		for (int i = 0; i < num; i++) {
+		for (i = 0; i < num; i++) {
 			if (realloc_maxsize[i] > 0)
 				printf("%sbuf_%s", i ? ", " : " ", libxsvf_mem2str(i));
 			else
 				printf("%s(void*)0", i ? ", " : " ");
 		}
 		printf(" };\n\tstatic int sizelist[%d] = {", num);
-		for (int i = 0; i < num; i++) {
+		for (i = 0; i < num; i++) {
 			if (realloc_maxsize[i] > 0)
 				printf("%ssizeof(buf_%s)", i ? ", " : " ", libxsvf_mem2str(i));
 			else

@@ -33,14 +33,14 @@ static void tap_transition(struct libxsvf_host *h, int v)
 
 int libxsvf_tap_walk(struct libxsvf_host *h, enum libxsvf_tap_state s)
 {
-
-	for (int i=0; s != h->tap_state; i++)
+	int i, j;
+	for (i=0; s != h->tap_state; i++)
 	{
 		switch (h->tap_state)
 		{
 		/* Special States */
 		case LIBXSVF_TAP_INIT:
-			for (int j = 0; j < 6; j++)
+			for (j = 0; j < 6; j++)
 				tap_transition(h, 1);
 			h->tap_state = LIBXSVF_TAP_RESET;
 			break;
