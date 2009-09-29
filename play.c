@@ -31,7 +31,10 @@ int libxsvf_play(struct libxsvf_host *h, enum libxsvf_mode mode)
 	int rc = -1;
 
 	h->tap_state = LIBXSVF_TAP_INIT;
-	LIBXSVF_HOST_SETUP();
+	if (LIBXSVF_HOST_SETUP() < 0) {
+		LIBXSVF_HOST_REPORT_ERROR("Setup of JTAG interface failed.");
+		return -1;
+	}
 
 	if (mode == LIBXSVF_MODE_SVF) {
 #ifdef LIBXSVF_WITHOUT_SVF
@@ -58,7 +61,12 @@ int libxsvf_play(struct libxsvf_host *h, enum libxsvf_mode mode)
 	}
 
 	libxsvf_tap_walk(h, LIBXSVF_TAP_RESET);
-	LIBXSVF_HOST_SHUTDOWN();
+	int shutdown_rc = LIBXSVF_HOST_SHUTDOWN();
+
+	if (shutdown_rc < 0) {
+		LIBXSVF_HOST_REPORT_ERROR("Shutdown of JTAG interface failed. (async TDO error?)");
+		rc = rc < 0 ? rc : shutdown_rc;
+	}
 
 	return rc;
 }

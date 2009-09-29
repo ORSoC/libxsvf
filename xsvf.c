@@ -180,7 +180,13 @@ static int xilinx_tap(int state)
 static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char *outp, unsigned char *maskp, int len, enum libxsvf_tap_state state, enum libxsvf_tap_state estate, int edelay, int retries)
 {
 	int left_padding = (8 - len % 8) % 8;
+	int with_retries = retries > 0;
 	int i;
+
+	if (with_retries && LIBXSVF_HOST_SYNC() < 0) {
+		LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
+		return -1;
+	}
 
 	while (1)
 	{
@@ -199,7 +205,8 @@ static int shift_data(struct libxsvf_host *h, unsigned char *inp, unsigned char 
 			int tdo = -1;
 			if (maskp && getbit(maskp, i))
 				tdo = outp && getbit(outp, i);
-			if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, 0) < 0)
+			int sync = with_retries && i == left_padding;
+			if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, 0, sync) < 0)
 				tdo_error = 1;
 		}
 

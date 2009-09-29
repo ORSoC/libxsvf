@@ -202,7 +202,7 @@ struct udata_s {
 	int retval[256];
 };
 
-static void h_setup(struct libxsvf_host *h)
+static int h_setup(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
 	if (u->verbose >= 2) {
@@ -210,9 +210,10 @@ static void h_setup(struct libxsvf_host *h)
 		fflush(stderr);
 	}
 	io_setup();
+	return 0;
 }
 
-static void h_shutdown(struct libxsvf_host *h)
+static int h_shutdown(struct libxsvf_host *h)
 {
 	struct udata_s *u = h->user_data;
 	if (u->verbose >= 2) {
@@ -220,6 +221,7 @@ static void h_shutdown(struct libxsvf_host *h)
 		fflush(stderr);
 	}
 	io_shutdown();
+	return 0;
 }
 
 static void h_udelay(struct libxsvf_host *h, long usecs, int tms, long num_tck)
@@ -260,7 +262,7 @@ static int h_getbyte(struct libxsvf_host *h)
 	return fgetc(u->f);
 }
 
-static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask)
+static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync)
 {
 	struct udata_s *u = h->user_data;
 

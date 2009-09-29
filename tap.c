@@ -28,7 +28,7 @@
 
 static void tap_transition(struct libxsvf_host *h, int v)
 {
-	LIBXSVF_HOST_PULSE_TCK(v, -1, -1, 0);
+	LIBXSVF_HOST_PULSE_TCK(v, -1, -1, 0, 0);
 }
 
 int libxsvf_tap_walk(struct libxsvf_host *h, enum libxsvf_tap_state s)

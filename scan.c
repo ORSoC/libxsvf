@@ -38,7 +38,7 @@ int libxsvf_scan(struct libxsvf_host *h)
 
 	for (i=0; i<256; i++)
 	{
-		int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0);
+		int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0, 1);
 
 		if (bit < 0)
 			return -1;
@@ -48,7 +48,7 @@ int libxsvf_scan(struct libxsvf_host *h)
 		} else {
 			unsigned long idcode = 1;
 			for (j=1; j<32; j++) {
-				int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0);
+				int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0, 1);
 				if (bit < 0)
 					return -1;
 				idcode |= bit << j;

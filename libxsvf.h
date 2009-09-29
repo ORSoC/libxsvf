@@ -97,11 +97,12 @@ enum libxsvf_mem {
 };
 
 struct libxsvf_host {
-	void (*setup)(struct libxsvf_host *h);
-	void (*shutdown)(struct libxsvf_host *h);
+	int (*setup)(struct libxsvf_host *h);
+	int (*shutdown)(struct libxsvf_host *h);
 	void (*udelay)(struct libxsvf_host *h, long usecs, int tms, long num_tck);
 	int (*getbyte)(struct libxsvf_host *h);
-	int (*pulse_tck)(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask);
+	int (*sync)(struct libxsvf_host *h);
+	int (*pulse_tck)(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync);
 	void (*pulse_sck)(struct libxsvf_host *h);
 	void (*set_trst)(struct libxsvf_host *h, int v);
 	int (*set_frequency)(struct libxsvf_host *h, int v);
@@ -129,7 +130,8 @@ int libxsvf_tap_walk(struct libxsvf_host *, enum libxsvf_tap_state);
 #define LIBXSVF_HOST_SHUTDOWN() h->shutdown(h)
 #define LIBXSVF_HOST_UDELAY(_usecs, _tms, _num_tck) h->udelay(h, _usecs, _tms, _num_tck)
 #define LIBXSVF_HOST_GETBYTE() h->getbyte(h)
-#define LIBXSVF_HOST_PULSE_TCK(_tms, _tdi, _tdo, _rmask) h->pulse_tck(h, _tms, _tdi, _tdo, _rmask)
+#define LIBXSVF_HOST_SYNC() (h->sync ? h->sync(h) : 0)
+#define LIBXSVF_HOST_PULSE_TCK(_tms, _tdi, _tdo, _rmask, _sync) h->pulse_tck(h, _tms, _tdi, _tdo, _rmask, _sync)
 #define LIBXSVF_HOST_PULSE_SCK() do { if (h->pulse_sck) h->pulse_sck(h); } while (0)
 #define LIBXSVF_HOST_SET_TRST(_v) do { if (h->set_trst) h->set_trst(h, _v); } while (0)
 #define LIBXSVF_HOST_SET_FREQUENCY(_v) (h->set_frequency ? h->set_frequency(h, _v) : -1)

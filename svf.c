@@ -314,7 +314,7 @@ static int bitdata_play(struct libxsvf_host *h, struct bitdata_s *bd, enum libxs
 		if (bd->tdo_data && (!bd->tdo_mask || getbit(bd->tdo_mask, i)))
 			tdo = getbit(bd->tdo_data, i);
 		int rmask = bd->ret_mask && getbit(bd->ret_mask, i);
-		if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, rmask) < 0)
+		if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, rmask, 0) < 0)
 			tdo_error = 1;
 	}
 
@@ -530,7 +530,7 @@ int libxsvf_svf(struct libxsvf_host *h)
 			}
 			else if (tck_count >= 0) {
 				for (i=0; i < tck_count; i++) {
-					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0);
+					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0, 0);
 				}
 			}
 			goto eol_check;
