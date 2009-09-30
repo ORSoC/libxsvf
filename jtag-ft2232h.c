@@ -30,6 +30,10 @@
  *  hardware interfaces. Have a look at 'xsvftool.c' for a simple libxsvf
  *  example for synchonous interfaces (such as register mapped GPIOs).
  *
+ *  IMPORTANT NOTICE: You need libftdi [1] (compiled with --with-async-mode,
+ *  version 0.16 or newer) installed to build this program.
+ *
+ *  [1] http://www.intra2net.com/en/developer/libftdi/
  */
 
 #include "libxsvf.h"

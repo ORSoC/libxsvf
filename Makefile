@@ -33,7 +33,24 @@ CC = gcc
 CFLAGS += -Wall -Os -ggdb -MD
 #CFLAGS += -Wextra -Wno-unused-parameter -Werror
 
-all: xsvftool jtag-ft2232h
+help:
+	@echo ""
+	@echo "Usage:"
+	@echo ""
+	@echo "  $(MAKE) libxsvf.a"
+	@echo "                .... build only the library"
+	@echo ""
+	@echo "  $(MAKE) xsvftool"
+	@echo "                .... build the library and xsvftool"
+	@echo ""
+	@echo "  $(MAKE) jtag-ft2232h"
+	@echo "                .... build the library and jtag-ft2232h"
+	@echo ""
+	@echo "  $(MAKE) all"
+	@echo "                .... build the library and all examples"
+	@echo ""
+
+all: libxsvf.a xsvftool jtag-ft2232h
 
 libxsvf.a: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o xsvftool.o
 	rm -f libxsvf.a
