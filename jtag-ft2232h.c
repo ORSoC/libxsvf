@@ -30,8 +30,12 @@
  *  hardware interfaces. Have a look at 'xsvftool.c' for a simple libxsvf
  *  example for synchonous interfaces (such as register mapped GPIOs).
  *
- *  IMPORTANT NOTICE: You need libftdi [1] (compiled with --with-async-mode,
- *  version 0.16 or newer) installed to build this program.
+ *  IMPORTANT NOTE: You need libftdi [1] (version 0.16 or newer) installed
+ *  to build this program.
+ *
+ *  To run it at full speed you need a version of libftdi that has been
+ *  compiled with '--with-async-mode', and must uncomment all three
+ *  defines ASYNC_WRITE, BACKGROUND_READ and INTERLACED_READ_WRITE below.
  *
  *  [1] http://www.intra2net.com/en/developer/libftdi/
  */
@@ -40,9 +44,9 @@
 
 #define BUFFER_SIZE (1024*16)
 
-#define ASYNC_WRITE
-#define BACKGROUND_READ
-#define INTERLACED_READ_WRITE
+// #define ASYNC_WRITE
+// #define BACKGROUND_READ
+// #define INTERLACED_READ_WRITE
 
 #include <sys/time.h>
 #include <unistd.h>
