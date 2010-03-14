@@ -423,6 +423,8 @@ static void buffer_add(struct udata_s *u, int tms, int tdi, int tdo, int rmask)
 
 static int h_setup(struct libxsvf_host *h)
 {
+	int device_is_amontec_jtagkey_2p = 0;
+
 	struct udata_s *u = h->user_data;
         if (ftdi_init(&u->ftdic) < 0)
 		return -1;
@@ -433,11 +435,21 @@ static int h_setup(struct libxsvf_host *h)
 		return -1;
 	}
 
-        if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6010) < 0) {
-		fprintf(stderr, "IO Error: Interface setup failed (usb open).\n");
-		ftdi_deinit(&u->ftdic);
-		return -1;
+	// 0x0403:0xcff8 = Amontec JTAGkey2P
+        if (ftdi_usb_open(&u->ftdic, 0x0403, 0xcff8) == 0) {
+		device_is_amontec_jtagkey_2p = 1;
+		goto found_device;
 	}
+
+	// 0x0403:0x6010 = Plain FTDI 2232H
+        if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6010) == 0) {
+		goto found_device;
+	}
+
+	fprintf(stderr, "IO Error: Interface setup failed (can't find or can't open device).\n");
+	ftdi_deinit(&u->ftdic);
+	return -1;
+found_device:;
 
         if (u->ftdic.type != TYPE_2232H) {
 		fprintf(stderr, "IO Error: Interface setup failed (wrong chip type).\n");
@@ -469,7 +481,7 @@ static int h_setup(struct libxsvf_host *h)
 		return -1;
 	}
 
-	unsigned char init_commands[] = {
+	unsigned char plain_init_commands[] = {
 		// 0x86, 0x6f, 0x17, // initial clk freq (1 kHz)
 		// 0x86, 0x05, 0x00, // initial clk freq (1 MHz)
 		0x86, 0x02, 0x00, // initial clk freq (2 MHz)
@@ -477,7 +489,20 @@ static int h_setup(struct libxsvf_host *h)
 		// 0x84, // enable loopback
 		0x85, // disable loopback
 	};
-	if (ftdi_write_data(&u->ftdic, init_commands, sizeof(init_commands)) != sizeof(init_commands)) {
+	unsigned char amontec_init_commands[] = {
+		0x86, 0x02, 0x00, // initial clk freq (2 MHz)
+		0x80, 0x18, 0x1b, // initial line states
+		0x85, // disable loopback
+	};
+	unsigned char *init_commands_p = plain_init_commands;
+	int init_commands_sz = sizeof(plain_init_commands);
+
+	if (device_is_amontec_jtagkey_2p) {
+		init_commands_p = amontec_init_commands;
+		init_commands_sz = sizeof(amontec_init_commands);
+	}
+
+	if (ftdi_write_data(&u->ftdic, init_commands_p, init_commands_sz) != init_commands_sz) {
 		fprintf(stderr, "IO Error: Interface setup failed (init commands).\n");
 		ftdi_disable_bitbang(&u->ftdic);
 		ftdi_usb_close(&u->ftdic);
