@@ -111,11 +111,14 @@ The host application must provide an libxsvf_host struct as defined
 in libxsvf.h. This struct contains some function pointers that must
 be set to implementations of the following functions:
 
-  void setup(struct libxsvf_host *h);
+  int setup(struct libxsvf_host *h);
 
 	This function is called by libxsvf to setup/initialize the
 	jtag interface. It is executed before any other libxsvf_host
 	callback function is called.
+
+	This function should return 0 when setting up the jtag
+	interface went fine and -1 on an error.
 
   int shutdown(struct libxsvf_host *h);
 
@@ -124,7 +127,7 @@ be set to implementations of the following functions:
 	be called after this function has been executed.
 
 	This function should return 0 when shutting down the jtag
-	interface went find and -1 on an error.
+	interface went fine and -1 on an error.
 
   void udelay(struct libxsvf_host *h, long usecs, int tms, long num_tck)
 
@@ -173,7 +176,7 @@ be set to implementations of the following functions:
 	* Store the current tdo value if the 'rmask' value is set to '1'.
 	  This step may be ignored if the RMASK feature (see "Limitations
 	  and non-standard extensions" above) is not used.
-	
+
 	The function must return the current value of the tdo line, or -1 on
 	a TDO-mismatch-error.
 
@@ -324,7 +327,7 @@ However, some JTAG transaction must be performed synchronously (e.g. the last
 transaction in an XSVF XREPEAT data shift. In this cases pulse_tck() is called
 with the 'sync' argument set to 1. The pulse_tck() function must then perform
 all buffered JTAG transactions and return the actual tdo value for this last
-JTAG transaction.
+JTAG transaction or -1 if an error was detected before.
 
 An asynchronous interface binding also must implement the sync() function. It
 must perform all buffered JTAG transactions and return -1 if a TDO error was
