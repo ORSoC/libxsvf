@@ -426,23 +426,23 @@ static int h_setup(struct libxsvf_host *h)
 	int device_is_amontec_jtagkey_2p = 0;
 
 	struct udata_s *u = h->user_data;
-        if (ftdi_init(&u->ftdic) < 0)
+	if (ftdi_init(&u->ftdic) < 0)
 		return -1;
 
-        if (ftdi_set_interface(&u->ftdic, INTERFACE_A) < 0) {
+	if (ftdi_set_interface(&u->ftdic, INTERFACE_A) < 0) {
 		fprintf(stderr, "IO Error: Interface setup failed (set port).\n");
 		ftdi_deinit(&u->ftdic);
 		return -1;
 	}
 
 	// 0x0403:0xcff8 = Amontec JTAGkey2P
-        if (ftdi_usb_open(&u->ftdic, 0x0403, 0xcff8) == 0) {
+	if (ftdi_usb_open(&u->ftdic, 0x0403, 0xcff8) == 0) {
 		device_is_amontec_jtagkey_2p = 1;
 		goto found_device;
 	}
 
 	// 0x0403:0x6010 = Plain FTDI 2232H
-        if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6010) == 0) {
+	if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6010) == 0) {
 		goto found_device;
 	}
 
@@ -451,7 +451,7 @@ static int h_setup(struct libxsvf_host *h)
 	return -1;
 found_device:;
 
-        if (u->ftdic.type != TYPE_2232H) {
+	if (u->ftdic.type != TYPE_2232H) {
 		fprintf(stderr, "IO Error: Interface setup failed (wrong chip type).\n");
 		ftdi_usb_close(&u->ftdic);
 		ftdi_deinit(&u->ftdic);
@@ -631,7 +631,8 @@ static void *h_realloc(struct libxsvf_host *h, void *ptr, int size, enum libxsvf
 	return realloc(ptr, size);
 }
 
-static struct udata_s u;
+static struct udata_s u = {
+};
 
 static struct libxsvf_host h = {
 	.udelay = h_udelay,
