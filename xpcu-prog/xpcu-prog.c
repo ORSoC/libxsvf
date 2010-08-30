@@ -7,9 +7,14 @@
 #include "commands.h"
 #include "../libxsvf.h"
 
+FILE *vfile_open_cpldxsvf();
+FILE *vfile_open_firmware();
+
 FILE *fp = NULL;
 usb_dev_handle *dh = NULL;
 int error = 0, verbose = 0;
+
+int cpld_mode = 0;
 
 unsigned char recv_count;
 unsigned char sendbuf[64];
@@ -115,7 +120,20 @@ static int h_setup(struct libxsvf_host *h)
 		return -1;
 	}
 
-	xpcu_psoc_upload_ihex(dh, "firmware.ihx");
+	FILE *f = vfile_open_firmware();
+	// FILE *f = fopen("firmware.ihx", "r");
+	if (f == NULL) {
+		fprintf(stderr, "xpcu-prog: Can't open ihex firmware image!\n");
+		usb_close(dh);
+		return -1;
+	}
+	if (xpcu_psoc_upload_ihex(dh, f) < 0) {
+		fprintf(stderr, "xpcu-prog: Can't upload ihex firmware image!\n");
+		fclose(f);
+		usb_close(dh);
+		return -1;
+	}
+	fclose(f);
 
 	if (xpcu_psoc_claim(dh) < 0) {
 		fprintf(stderr, "xpcu-prog: Can't claim xpcu_psoc device!\n");
@@ -142,8 +160,10 @@ static int h_setup(struct libxsvf_host *h)
 					fprintf(stderr, "com test %2d: 0x%02x ok\n", i, CMD_BYTE_ECHO | (i & 0x1f));
 				break;
 			}
-			if (verbose > 0)
-				fprintf(stderr, "com test %2d: 0x%02x != 0x%02x -> keep waiting\n", i, buf, CMD_BYTE_ECHO | (i & 0x1f));
+			fprintf(stderr, "xpcu-prog: com test %2d failed: 0x%02x != 0x%02x\n", i, buf, CMD_BYTE_ECHO | (i & 0x1f));
+			xpcu_psoc_release(dh);
+			usb_close(dh);
+			return -1;
 		}
 	}
 
@@ -166,14 +186,14 @@ static int h_getbyte(struct libxsvf_host *h)
 static int h_sync(struct libxsvf_host *h)
 {
 	uint8_t report;
-	send_byte(CMD_BYTE_SYNC_CPLD);
+	send_byte(cpld_mode ? CMD_BYTE_SYNC_CPLD : CMD_BYTE_SYNC_JTAG);
 	report = recv_byte();
 	return (report & CMD_BYTE_REPORT_FLAG_ERR) != 0 ? -1 : 0;
 }
 
 static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync)
 {
-	send_byte(CMD_BYTE_PULSE_CPLD |
+	send_byte((cpld_mode ? CMD_BYTE_PULSE_CPLD : CMD_BYTE_PULSE_JTAG) |
 			(tms ? CMD_BYTE_PULSE_FLAG_TMS : 0) | (tdi ? CMD_BYTE_PULSE_FLAG_TDI : 0) |
 			(tdo ? CMD_BYTE_PULSE_FLAG_TDO : 0) | (tdo >= 0 ? CMD_BYTE_PULSE_FLAG_CHK : 0) |
 			(sync ? CMD_BYTE_PULSE_FLAG_SYN : 0));
@@ -203,7 +223,6 @@ static int h_set_frequency(struct libxsvf_host *h, int v)
 
 static void h_report_device(struct libxsvf_host *h, unsigned long idcode)
 {
-	// struct udata_s *u = h->user_data;
 	printf("idcode=0x%08lx, revision=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode, (idcode >> 28) & 0xf, (idcode >> 12) & 0xffff, (idcode >> 1) & 0x7ff);
 }
 
@@ -245,44 +264,68 @@ int main(int argc, char **argv)
 
 	usb_init();
 
-	while ((opt = getopt(argc, argv, "vcs:x:")) != -1)
+	cpld_mode = 0;
+	while ((opt = getopt(argc, argv, "vcs:x:XCJ")) != -1)
 	{
 		if (opt == 'v')
 			verbose++;
-		if (opt == 's' || opt == 'x') {
+		else if (opt == 's' || opt == 'x' || opt == 'X') {
+			int cpld_mode_backup = cpld_mode;
 			did_something = 1;
-			if (!strcmp(optarg, "-"))
+			if (opt == 'X') {
+				cpld_mode = 1;
+				fp = vfile_open_cpldxsvf();
+			} else if (!strcmp(optarg, "-"))
 				fp = stdin;
 			else
 				fp = fopen(optarg, "rb");
 			if (fp == NULL) {
-				fprintf(stderr, "Can't open %s file `%s': %s\n", opt == 's' ? "SVF" : "XSVF", optarg, strerror(errno));
+				fprintf(stderr, "Can't open %s file `%s': %s\n", opt == 's' ? "SVF" : "XSVF", opt == 'X' ? "CPLD XSVF" : optarg, strerror(errno));
 				error = 1;
 				continue;
 			}
 			if (libxsvf_play(&h, opt == 's' ? LIBXSVF_MODE_SVF : LIBXSVF_MODE_XSVF) < 0) {
-				fprintf(stderr, "Error while playing %s file `%s'.\n", opt == 's' ? "SVF" : "XSVF", optarg);
+				fprintf(stderr, "Error while playing %s file `%s'.\n", opt == 's' ? "SVF" : "XSVF", opt == 'X' ? "CPLD XSVF" : optarg);
 				error = 1;
 			}
-			if (strcmp(optarg, "-"))
+			if (opt == 'X' || strcmp(optarg, "-"))
 				fclose(fp);
 			fp = NULL;
+			cpld_mode = cpld_mode_backup;
 		}
-		if (opt == 'c') {
+		else if (opt == 'c') {
 			did_something = 1;
 			if (libxsvf_play(&h, LIBXSVF_MODE_SCAN) < 0) {
 				fprintf(stderr, "Error while scanning JTAG chain.\n");
 				error = 1;
 			}
 		}
+		else if (opt == 'C')
+			cpld_mode = 1;
+		else if (opt == 'J')
+			cpld_mode = 0;
+		else
+			goto print_help;
 	}
 
 	if (!did_something) {
+print_help:
 		error = 1;
-		fprintf(stderr, "Usage: %s [ -v ] { -c | -s svf_file | -x xsvf_file } [ ... ]\n", argv[0]);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "Usage: %s [ -v.. ] { -J | -C | -X | -c | -s svf_file | -x xsvf_file } [ ... ]\n", argv[0]);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "   -v      incrase verbosity\n");
+		fprintf(stderr, "   -J      all following transaction are for the JTAG port (default)\n");
+		fprintf(stderr, "   -C      all following transaction are for the CPLD in the cable\n");
+		fprintf(stderr, "   -X      program the CPLD with the built-in default XSVF file\n");
+		fprintf(stderr, "   -c      perform a bus scan and list all devices\n");
+		fprintf(stderr, "   -s      execute the commands from an SVF file\n");
+		fprintf(stderr, "   -x      execute the commands from an XSVF file\n");
+		fprintf(stderr, "\n");
 	} else if (error) {
 		fprintf(stderr, "Got errors!\n");
 	}
 
 	return error;
 }
+

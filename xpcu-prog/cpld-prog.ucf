@@ -1,0 +1,17 @@
+NET "sys_tck" LOC = "66" | IOSTANDARD = LVCMOS33;
+NET "sys_tms" LOC = "67" | IOSTANDARD = LVCMOS33;
+NET "sys_tdi" LOC = "68" | IOSTANDARD = LVCMOS33;
+NET "sys_tdo" LOC = "27" | IOSTANDARD = LVCMOS33;
+
+# PC3 in
+NET "cy_tck" LOC = "17" | IOSTANDARD = LVCMOS33;
+
+# PC4 in
+NET "cy_tms" LOC = "18" | IOSTANDARD = LVCMOS33;
+
+# PC6 in
+NET "cy_tdi" LOC = "29" | IOSTANDARD = LVCMOS33;
+
+# PD5 out
+NET "cy_tdo" LOC = "49" | IOSTANDARD = LVCMOS33;
+

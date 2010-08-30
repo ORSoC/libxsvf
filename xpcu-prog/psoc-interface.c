@@ -30,20 +30,13 @@ static int psoc_fwload_ctrl_msg(usb_dev_handle *dh, int addr, const void *data, 
 	return ret == len ? 0 : -1;
 }
 
-int xpcu_psoc_upload_ihex(usb_dev_handle *dh, const char *ihex_filename)
+int xpcu_psoc_upload_ihex(usb_dev_handle *dh, FILE *fp)
 {
 	uint8_t on = 1, off = 0;
-
-	FILE *fp = fopen(ihex_filename, "r");
-	if (fp == NULL) {
-		fprintf(stderr, "xpcu_psoc_upload_ihex: can't open file `%s'!\n", ihex_filename);
-		return -1;
-	}
 
 	// assert reset
 	if (psoc_fwload_ctrl_msg(dh, 0xE600, &on, 1) < 0) {
 		fprintf(stderr, "xpcu_psoc_upload_ihex: can't assert reset!\n");
-		fclose(fp);
 		return -1;
 	}
 
@@ -68,13 +61,11 @@ int xpcu_psoc_upload_ihex(usb_dev_handle *dh, const char *ihex_filename)
 
 		if (lsize < 5) {
 			fprintf(stderr, "xpcu_psoc_upload_ihex: ihex line %d: record is to short!\n", linecount);
-			fclose(fp);
 			return -1;
 		}
 
 		if (ldata[0] != lsize-5) {
 			fprintf(stderr, "xpcu_psoc_upload_ihex: ihex line %d: size does not match record length!\n", linecount);
-			fclose(fp);
 			return -1;
 		}
 
@@ -83,13 +74,11 @@ int xpcu_psoc_upload_ihex(usb_dev_handle *dh, const char *ihex_filename)
 
 		if (cksum != ldata[lsize-1]) {
 			fprintf(stderr, "xpcu_psoc_upload_ihex: ihex line %d: cksum error!\n", linecount);
-			fclose(fp);
 			return -1;
 		}
 
 		if (psoc_fwload_ctrl_msg(dh, (ldata[1] << 8) | ldata[2], &ldata[4], ldata[0]) < 0) {
 			fprintf(stderr, "xpcu_psoc_upload_ihex: ihex line %d: error in psoc communication!\n", linecount);
-			fclose(fp);
 			return -1;
 		}
 	}
@@ -97,11 +86,9 @@ int xpcu_psoc_upload_ihex(usb_dev_handle *dh, const char *ihex_filename)
 	// release reset
 	if (psoc_fwload_ctrl_msg(dh, 0xE600, &off, 1) < 0) {
 		fprintf(stderr, "xpcu_psoc_upload_ihex: can't release reset!\n");
-		fclose(fp);
 		return -1;
 	}
 
-	fclose(fp);
 	return 0;
 }
 

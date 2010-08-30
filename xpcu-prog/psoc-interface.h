@@ -3,9 +3,10 @@
 #define PSOC_INTERFACE_H
 
 #include <usb.h>
+#include <stdio.h>
 
 usb_dev_handle *xpcu_psoc_open();
-int xpcu_psoc_upload_ihex(usb_dev_handle *dh, const char *ihex_filename);
+int xpcu_psoc_upload_ihex(usb_dev_handle *dh, FILE *fp);
 int xpcu_psoc_claim(usb_dev_handle *dh);
 void xpcu_psoc_release(usb_dev_handle *dh);
 
