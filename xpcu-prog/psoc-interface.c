@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <errno.h>
 #include "psoc-interface.h"
 
 usb_dev_handle *xpcu_psoc_open()
@@ -126,21 +127,46 @@ void xpcu_psoc_release(usb_dev_handle *dh)
 	usb_release_interface(dh, 0);
 }
 
-int xpcu_psoc_send_chunk(usb_dev_handle *dh, int ep, const void *data, int len)
+void xpcu_psoc_flush(usb_dev_handle *dh)
 {
-	int ret = usb_bulk_write(dh, ep, data, len, 1000);
+	while (1)
+	{
+		unsigned char readbuf[2] = { 0, 0 };
+		int ret = usb_bulk_read(dh, 1, (char*)readbuf, 2, 10);
+		if (ret <= 0)
+			return;
+		fprintf(stderr, "Unexpected data word from device: 0x%02x 0x%02x (%d)\n", readbuf[0], readbuf[1], ret);
+	}
+}
+
+int xpcu_psoc_send_chunk(usb_dev_handle *dh, const void *data, int len)
+{
+	int ret;
+retry_write:
+	ret = usb_bulk_write(dh, 1, data, len, 1000);
+	if (ret == -ETIMEDOUT) {
+		fprintf(stderr, "xpcu_psoc_recv_chunk: usb write timeout -> retry\n");
+		xpcu_psoc_flush(dh);
+		goto retry_write;
+	}
 	if (ret != len)
-		fprintf(stderr, "xpcu_psoc_send_chunk: write of %d bytes to ep %d returned %d: %s\n", len, ep, ret, ret >= 0 ? "NO ERROR" : usb_strerror());
+		fprintf(stderr, "xpcu_psoc_send_chunk: write of %d bytes to ep 1 returned %d: %s\n", len, ret, ret >= 0 ? "NO ERROR" : usb_strerror());
 	return ret == len ? 0 : -1;
 }
 
-int xpcu_psoc_recv_chunk(usb_dev_handle *dh, int ep, void *data, int len, int *ret_len)
+int xpcu_psoc_recv_chunk(usb_dev_handle *dh, void *data, int len, int *ret_len)
 {
-	int ret = usb_bulk_read(dh, ep, data, len, 1000);
+	int ret;
+retry_read:
+	ret = usb_bulk_read(dh, 1, data, len, 1000);
+	if (ret == -ETIMEDOUT) {
+		fprintf(stderr, "xpcu_psoc_recv_chunk: usb read timeout -> retry\n");
+		goto retry_read;
+	}
 	if (ret > 0 && ret_len != NULL)
 		len = *ret_len = ret;
 	if (ret != len)
-		fprintf(stderr, "xpcu_psoc_recv_chunk: read of %d bytes from ep %d returned %d: %s\n", len, ep, ret, ret >= 0 ? "NO ERROR" : usb_strerror());
+		fprintf(stderr, "xpcu_psoc_recv_chunk: read of %d bytes from ep 1 returned %d: %s\n", len, ret, ret >= 0 ? "NO ERROR" : usb_strerror());
 	return ret == len ? 0 : -1;
 }
 

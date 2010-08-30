@@ -23,5 +23,7 @@
 #define CMD_BYTE_REPORT_FLAG_TDO 0x01
 #define CMD_BYTE_REPORT_FLAG_ERR 0x02
 
+#define CMD_BYTE_ECHO 0xe0
+
 #endif /* COMMANDS_H */
 

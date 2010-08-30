@@ -11,12 +11,15 @@ FILE *fp = NULL;
 usb_dev_handle *dh = NULL;
 int error = 0, verbose = 0;
 
+unsigned char recv_count;
 unsigned char sendbuf[64];
 int sendbuf_len;
 
-static void report_byte(int outdir, unsigned char value)
+static void report_byte(int outdir, int pos, unsigned char value)
 {
 	fprintf(stderr, outdir ? ">> 0x%02X" : "<< 0x%02X", value);
+	if (value == 0)
+		fprintf(stderr, " NULL");
 	if ((value & CMD_BYTE_CMD_MASK) == CMD_BYTE_PULSE_CPLD)
 		fprintf(stderr, " PULSE_CPLD");
 	if ((value & CMD_BYTE_CMD_MASK) == CMD_BYTE_PULSE_JTAG)
@@ -49,48 +52,60 @@ static void report_byte(int outdir, unsigned char value)
 		if ((value & CMD_BYTE_REPORT_FLAG_ERR) != 0)
 			fprintf(stderr, " ERR");
 	}
-	fprintf(stderr, "\n");
+	if ((value & CMD_BYTE_CMD_MASK) == CMD_BYTE_ECHO)
+		fprintf(stderr, " ECHO(%02x)", value & 0x1f);
+	if (pos >= 0)
+		fprintf(stderr, " <%d>\n", pos);
+	else
+		fprintf(stderr, "\n");
+}
+
+static void send_flush()
+{
+	if (xpcu_psoc_send_chunk(dh, sendbuf, sendbuf_len) < 0) {
+		fprintf(stderr, "xpcu-prog: Send failed!\n");
+		error = 1;
+	}
+	sendbuf_len = 0;
 }
 
 static void send_byte(unsigned char value)
 {
 	if (verbose > 1)
-		report_byte(1, value);
+		report_byte(1, -1, value);
 	sendbuf[sendbuf_len++] = value;
 	if (sendbuf_len == 64) {
 		if (verbose > 1)
-			fprintf(stderr, ">> buffer full -> flush\n");
-		if (xpcu_psoc_send_chunk(dh, 2, sendbuf, sendbuf_len) < 0) {
-			fprintf(stderr, "xpcu-prog: Send failed!\n");
-			error = 1;
-		}
-		sendbuf_len = 0;
+			fprintf(stderr, "** buffer full -> flush %d bytes\n", sendbuf_len);
+		send_flush();
 	}
 }
 
 static int recv_byte()
 {
-	unsigned char value;
+	unsigned char buffer[2];
 	if (sendbuf_len > 0) {
 		if (verbose > 1)
-			fprintf(stderr, ">> sync point -> flush\n");
-		if (xpcu_psoc_send_chunk(dh, 2, sendbuf, sendbuf_len) < 0) {
-			fprintf(stderr, "xpcu-prog: Send failed!\n");
-			error = 1;
-		}
-		sendbuf_len = 0;
+			fprintf(stderr, "** sync point -> flush %d bytes\n", sendbuf_len);
+		send_flush();
 	}
-	if (xpcu_psoc_recv_chunk(dh, 6, &value, 1, NULL) < 0) {
+	recv_count++;
+	if (xpcu_psoc_recv_chunk(dh, buffer, 2, NULL) < 0) {
 		fprintf(stderr, "xpcu-prog: Recv failed!\n");
 		error = 1;
 	}
 	if (verbose > 1)
-		report_byte(0, value);
-	return value;
+		report_byte(0, buffer[0], buffer[1]);
+	if (buffer[0] != recv_count) {
+		fprintf(stderr, "xpcu-prog: message from device is out of order! (%d vs %d)\n", buffer[0], recv_count);
+	}
+	return buffer[1];
 }
 
 static int h_setup(struct libxsvf_host *h)
 {
+	int i;
+
 	usb_find_busses();
 	usb_find_devices();
 
@@ -108,7 +123,29 @@ static int h_setup(struct libxsvf_host *h)
 		return -1;
 	}
 
+	usleep(100000);
+	xpcu_psoc_flush(dh);
+
+	recv_count = 0;
 	sendbuf_len = 0;
+
+	/* test communication */
+	for (i=0; i<16; i++)
+		send_byte(CMD_BYTE_ECHO | i);
+	send_flush();
+
+	for (i=0; i<16; i++) {
+		while (1) {
+			unsigned char buf = recv_byte();
+			if (buf == (CMD_BYTE_ECHO | (i & 0x1f))) {
+				if (verbose > 0)
+					fprintf(stderr, "com test %2d: 0x%02x ok\n", i, CMD_BYTE_ECHO | (i & 0x1f));
+				break;
+			}
+			if (verbose > 0)
+				fprintf(stderr, "com test %2d: 0x%02x != 0x%02x -> keep waiting\n", i, buf, CMD_BYTE_ECHO | (i & 0x1f));
+		}
+	}
 
 	return 0;
 }

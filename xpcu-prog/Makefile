@@ -6,13 +6,13 @@ all: xpcu-prog firmware.ihx
 
 xpcu-prog: xpcu-prog.o psoc-interface.o
 
-firmware.ihx: firmware.c
+firmware.ihx: firmware.c commands.h
 	sdcc -mmcs51 firmware.c
 
 clean:
 	rm -f firmware.???
 	rm -f xpcu-prog
-	rm -f *.o core
+	rm -f *.o *.d core
 
 -include *.d
 
