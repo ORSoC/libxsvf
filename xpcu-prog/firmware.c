@@ -191,7 +191,7 @@ void cpld_sync()
 // JTAG Pinout:
 //	TCK .. IOC[3]
 //	TMS .. IOC[4]
-//	TDO .. IOC[5]
+//	TDO .. IOD[5]
 //	TDI .. IOC[6]
 
 uint8_t jtag_error;
@@ -202,6 +202,8 @@ void jtag_init()
 	OEC_set(1 << 3);
 	OEC_setbits(1 << 4);
 	OEC_setbits(1 << 6);
+	IOC_set(0);
+	OEC_set(0);
 	jtag_error = 0;
 }
 
@@ -217,7 +219,7 @@ void jtag_pulse_tck(uint8_t tms, uint8_t tdi, uint8_t tdo, uint8_t sync)
 	IOC_set(ioc2);
 	IOC_set(ioc1);
 
-	tdo_val = (IOC_get() & (1 << 5)) != 0;
+	tdo_val = (IOD_get() & (1 << 5)) != 0;
 
 	if (tdo == 0 && tdo_val != 0)
 		jtag_error = 1;
@@ -233,7 +235,7 @@ void jtag_pulse_tck(uint8_t tms, uint8_t tdi, uint8_t tdo, uint8_t sync)
 
 void jtag_sync()
 {
-	uint8_t tdo_val = (IOC_get() & (1 << 5)) != 0;
+	uint8_t tdo_val = (IOD_get() & (1 << 5)) != 0;
 	send_byte(CMD_BYTE_REPORT_JTAG | (tdo_val ? CMD_BYTE_REPORT_FLAG_TDO : 0) | (jtag_error ? CMD_BYTE_REPORT_FLAG_ERR : 0));
 	jtag_error = 0;
 }
@@ -245,6 +247,7 @@ void main(void)
 	uint32_t ledcount = 0;
 	uint8_t ledblink = 0;
 	uint8_t input_len, cmd, i;
+	uint32_t j;
 
 	core_init();
 	cpld_init();
@@ -258,6 +261,20 @@ void main(void)
 
 	/* arm EP1OUT (host -> psoc) */
 	EP1OUTBC_set(1);
+
+#if 0
+	/* simple I/O test */
+	while (1)
+	{
+		IOA_set(0x02);
+		jtag_pulse_tck(1, 0, 2, 0);
+		for (j = 0; j < 1000000; j++) { _asm nop _endasm; }
+
+		IOA_set(0x01);
+		jtag_pulse_tck(0, 1, 2, 0);
+		for (j = 0; j < 1000000; j++) { _asm nop _endasm; }
+	}
+#endif
 
 	while (1)
 	{
