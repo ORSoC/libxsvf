@@ -96,17 +96,17 @@ void signal(uint8_t blinks)
 	uint8_t i;
 	uint32_t j;
 
-	IOA_set(0x02);
+	IOA_set(0x22);
 
 	for (i = 0; i < blinks; i++) {
-		IOA_set(0x03);
+		IOA_set(0x23);
 		for (j = 0; j < 100000; j++) { _asm nop _endasm; }
-		IOA_set(0x02);
+		IOA_set(0x22);
 		for (j = 0; j < 200000; j++) { _asm nop _endasm; }
 	}
 	for (j = 0; j < 1000000; j++) { _asm nop _endasm; }
 
-	IOA_set(0x01);
+	IOA_set(0x21);
 }
 
 void panic(uint8_t blinks)
@@ -193,6 +193,7 @@ void cpld_sync()
 //	TMS .. IOC[4]
 //	TDO .. IOD[5]
 //	TDI .. IOC[6]
+//	OE ... IOA[5]  (always set)
 
 uint8_t jtag_error;
 
@@ -256,8 +257,8 @@ void main(void)
 	send_bytecount = 0;
 
 	/* LEDs */
-	OEA_set(0x03);
-	IOA_set(0x03);
+	OEA_set(0x23);
+	IOA_set(0x23);
 
 	/* arm EP1OUT (host -> psoc) */
 	EP1OUTBC_set(1);
@@ -266,11 +267,11 @@ void main(void)
 	/* simple I/O test */
 	while (1)
 	{
-		IOA_set(0x02);
+		IOA_set(0x22);
 		jtag_pulse_tck(1, 0, 2, 0);
 		for (j = 0; j < 1000000; j++) { _asm nop _endasm; }
 
-		IOA_set(0x01);
+		IOA_set(0x21);
 		jtag_pulse_tck(0, 1, 2, 0);
 		for (j = 0; j < 1000000; j++) { _asm nop _endasm; }
 	}
