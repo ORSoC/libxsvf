@@ -51,7 +51,7 @@ int libxsvf_scan(struct libxsvf_host *h)
 				int bit = LIBXSVF_HOST_PULSE_TCK(0, 1, -1, 0, 1);
 				if (bit < 0)
 					return -1;
-				idcode |= bit << j;
+				idcode |= ((unsigned long)bit) << j;
 			}
 			if (idcode == 0xffffffff)
 				break;
