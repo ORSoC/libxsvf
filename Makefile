@@ -40,32 +40,39 @@ help:
 	@echo "  $(MAKE) libxsvf.a"
 	@echo "                .... build only the library"
 	@echo ""
-	@echo "  $(MAKE) xsvftool"
-	@echo "                .... build the library and xsvftool"
+	@echo "  $(MAKE) xsvftool-direct"
+	@echo "                .... build the library and xsvftool-direct"
 	@echo ""
-	@echo "  $(MAKE) jtag-ft2232h"
-	@echo "                .... build the library and jtag-ft2232h"
+	@echo "  $(MAKE) xsvftool-ft2232h"
+	@echo "                .... build the library and xsvftool-ft2232h"
+	@echo ""
+	@echo "  $(MAKE) xsvftool-xpcu"
+	@echo "                .... build the library and xsvftool-xpcu"
 	@echo ""
 	@echo "  $(MAKE) all"
 	@echo "                .... build the library and all examples"
 	@echo ""
 
-all: libxsvf.a xsvftool jtag-ft2232h
+all: libxsvf.a xsvftool-direct xsvftool-ft2232h xsvftool-xpcu
 
-libxsvf.a: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o xsvftool.o
+libxsvf.a: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o
 	rm -f libxsvf.a
 	$(AR) qc $@ $^
 	$(RANLIB) $@
 
-xsvftool: libxsvf.a xsvftool.o
+xsvftool-direct: libxsvf.a xsvftool-direct.o
 
-jtag-ft2232h: LDLIBS+=-lftdi
-jtag-ft2232h: LDFLAGS+=-pthread
-jtag-ft2232h.o: CFLAGS+=-pthread
-jtag-ft2232h: libxsvf.a jtag-ft2232h.o
+xsvftool-ft2232h: LDLIBS+=-lftdi
+xsvftool-ft2232h: LDFLAGS+=-pthread
+xsvftool-ft2232h.o: CFLAGS+=-pthread
+xsvftool-ft2232h: libxsvf.a xsvftool-ft2232h.o
+
+xsvftool-xpcu: libxsvf.a xsvftool-xpcu.src/*
+	$(MAKE) -C xsvftool-xpcu.src
+	cp xsvftool-xpcu.src/xsvftool-xpcu xsvftool-xpcu
 
 clean:
-	rm -f xsvftool jtag-ft2232h libxsvf.a *.o *.d
+	rm -f xsvftool-direct xsvftool-ft2232h libxsvf.a *.o *.d
 
 -include *.d
 

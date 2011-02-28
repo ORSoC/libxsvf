@@ -1,5 +1,5 @@
 
-LIBXSVFDIR=$(HOME)/Work/libxsvf-31
+LIBXSVFDIR=..
 
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -Os -ggdb -I$(LIBXSVFDIR) -MD
