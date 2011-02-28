@@ -67,7 +67,8 @@ xsvftool-ft2232h: LDFLAGS+=-pthread
 xsvftool-ft2232h.o: CFLAGS+=-pthread
 xsvftool-ft2232h: libxsvf.a xsvftool-ft2232h.o
 
-xsvftool-xpcu: libxsvf.a xsvftool-xpcu.src/*
+xsvftool-xpcu: libxsvf.a xsvftool-xpcu.src/*.c xsvftool-xpcu.src/*.h \
+		xsvftool-xpcu.src/*.v xsvftool-xpcu.src/*.ucf
 	$(MAKE) -C xsvftool-xpcu.src
 	cp xsvftool-xpcu.src/xsvftool-xpcu xsvftool-xpcu
 

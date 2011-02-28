@@ -229,6 +229,8 @@ static struct libxsvf_host h = {
 
 int main()
 {
+	fprintf(stderr, "\n           *** This is work in progress! ***\n\n");
+
 	usb_init();
 	usb_find_busses();
 	usb_find_devices();
