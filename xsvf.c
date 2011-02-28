@@ -263,6 +263,10 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 		{
 		case XCOMPLETE: {
 			STATUS(XCOMPLETE);
+			if (LIBXSVF_HOST_SYNC() != 0) {
+				LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
+				goto error;
+			}
 			goto got_complete_command;
 		  }
 		case XTDOMASK: {

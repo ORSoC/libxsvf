@@ -644,6 +644,11 @@ error:
 		break;
 	}
 
+	if (rc >= 0 && LIBXSVF_HOST_SYNC() != 0) {
+		LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
+		rc = -1;
+	}
+
 	bitdata_free(h, &bd_hdr, LIBXSVF_MEM_SVF_HDR_TDI_DATA);
 	bitdata_free(h, &bd_hir, LIBXSVF_MEM_SVF_HIR_TDI_DATA);
 	bitdata_free(h, &bd_tdr, LIBXSVF_MEM_SVF_TDR_TDI_DATA);
