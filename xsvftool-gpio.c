@@ -388,7 +388,7 @@ static void copyleft()
 	static int already_printed = 0;
 	if (already_printed)
 		return;
-	fprintf(stderr, "xsvftool, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
+	fprintf(stderr, "xsvftool-gpio, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
 	fprintf(stderr, "Copyright (C) 2009  RIEGL Research ForschungsGmbH\n");
 	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");

@@ -101,8 +101,8 @@ So far the libary has only been tested on 32 bit hosts. Using it on
 16 bit processors might not be possible without performing some minor
 fixes in the code.
 
-The program 'xsvftool' (see xsvftool.c) is a good example of how to
-use the library. Please have a look at this program first.
+The program 'xsvftool-gpio' (see xsvftool-gpio.c) is a good example
+of how to use the library. Please have a look at this program first.
 
 Note: See 'Host accessor macros' below for an alternative way of
 integrating libxsvf into your host environment.
@@ -269,12 +269,12 @@ be set to implementations of the following functions:
 	memory. In cases where there is a standard c library
 	it may be a simple wrapper for the realloc() function.
 
-	The xsvftool command line option '-r' can be used to
+	The xsvftool-gpio command line option '-r' can be used to
 	auto-generate a realloc function for static buffers, based
 	on the requirements from an example svf or xsvf file.
 	Example given:
 
-		./xsvftool -r my_host_realloc -s demo.svf
+		./xsvftool-gpio -r my_host_realloc -s demo.svf
 
 	(Re-)allocation may fail. In this cases a NULL pointer
 	must be returned. The library then generates an error,
