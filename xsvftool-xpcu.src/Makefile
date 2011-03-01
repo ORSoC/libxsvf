@@ -23,6 +23,9 @@
 #  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 #
 
+USE_PREP_FIRMWARE = 1
+USE_PREP_HARDWARE = 1
+
 LIBXSVFDIR=..
 
 CC = gcc
@@ -39,11 +42,19 @@ xsvftool-xpcu: filedata.h hardware_cksum_c.inc $(LIBXSVFDIR)/libxsvf.a xsvftool-
 	$(CC) $(LDFLAGS) xsvftool-xpcu.o fx2usb-interface.o $(LDLIBS) -o $@
 
 hardware.svf: hardware.sh hardware.ucf hardware.v hardware_cksum_vl.inc
+ifeq ($(USE_PREP_HARDWARE),1)
+	cp prep_hardware.svf hardware.svf
+else
 	bash hardware.sh
+endif
 
 firmware.ihx: firmware.c
+ifeq ($(USE_PREP_FIRMWARE),1)
+	cp prep_firmware.ihx firmware.ihx
+else
 	cpp -MD -MF $(basename $<).d -MT $(basename $<).ihx -o /dev/null $<
 	$(SDCC) $(SDCFLAGS) $<
+endif
 
 firmware.ihx: gpifprog_fixed.c
 gpifprog_fixed.c: gpifprog.c
@@ -61,6 +72,15 @@ filedata.h: hardware.svf firmware.ihx
 	echo "unsigned char firmware_ihx[] = { " && perl -pe 's/(.)/ord($$1).","/sge' firmware.ihx && echo "};"; } | \
 	perl -pe 's/(.{70}.*?,)/$$1\n/g' > filedata.h_new
 	mv filedata.h_new filedata.h
+
+prep:
+	make clean
+	sed -i '/^USE_PREP_/ s/1/0/;' Makefile
+	make hardware.svf firmware.ihx
+	cp hardware.svf prep_hardware.svf
+	cp firmware.ihx prep_firmware.ihx
+	sed -i '/^USE_PREP_/ s/0/1/;' Makefile
+	make clean
 
 clean:
 	rm -f firmware.asm firmware.lnk firmware.lst firmware.map

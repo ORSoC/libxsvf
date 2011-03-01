@@ -22,3 +22,9 @@ With this software it is possible to use JTAG clock speeds up to 24 MHz.
 But with the high frequencies there are "gaps" in the transmittion resulting
 in an effective transfer rate of approx 6 MBit/s.
 
+This tool contains firmware for the CY7C68013A-100AIX (firmware.c) and for the
+XC2C256-7VQ100 (hardware.v) on the probe. Some more exotic tools are needed to
+build these. So pre-compiled versions of this firmware images are distributed
+along with the xsvftool-xpcu sourcecode. You need to set the USE_PREP_* config
+options in the Makefile to '0' if you prefer building the firmware yourself.
+
