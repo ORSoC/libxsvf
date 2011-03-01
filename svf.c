@@ -644,7 +644,7 @@ error:
 		break;
 	}
 
-	if (rc >= 0 && LIBXSVF_HOST_SYNC() != 0) {
+	if (LIBXSVF_HOST_SYNC() != 0 && rc >= 0 ) {
 		LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
 		rc = -1;
 	}

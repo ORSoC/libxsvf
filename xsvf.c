@@ -263,10 +263,6 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 		{
 		case XCOMPLETE: {
 			STATUS(XCOMPLETE);
-			if (LIBXSVF_HOST_SYNC() != 0) {
-				LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
-				goto error;
-			}
 			goto got_complete_command;
 		  }
 		case XTDOMASK: {
@@ -462,6 +458,11 @@ error:
 	rc = -1;
 
 got_complete_command:
+	if (LIBXSVF_HOST_SYNC() != 0 && rc >= 0 ) {
+		LIBXSVF_HOST_REPORT_ERROR("TDO mismatch.");
+		rc = -1;
+	}
+
 	LIBXSVF_HOST_REALLOC(buf_tdi_data, 0, LIBXSVF_MEM_XSVF_TDI_DATA);
 	LIBXSVF_HOST_REALLOC(buf_tdo_data, 0, LIBXSVF_MEM_XSVF_TDO_DATA);
 	LIBXSVF_HOST_REALLOC(buf_tdo_mask, 0, LIBXSVF_MEM_XSVF_TDO_MASK);

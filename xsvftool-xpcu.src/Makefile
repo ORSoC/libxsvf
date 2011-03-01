@@ -35,7 +35,8 @@ SDCFLAGS = -mmcs51 --xram-loc 0x2000
 
 all: xsvftool-xpcu hardware.svf firmware.ihx
 
-xsvftool-xpcu: xsvftool-xpcu.o fx2usb-interface.o
+xsvftool-xpcu: xsvftool-xpcu.o fx2usb-interface.o $(LIBXSVFDIR)/libxsvf.a
+	$(CC) $(LDFLAGS) xsvftool-xpcu.o fx2usb-interface.o $(LDLIBS) -o $@
 
 hardware.svf: hardware.sh hardware.ucf hardware.v
 	bash hardware.sh
