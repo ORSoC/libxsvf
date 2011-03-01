@@ -154,6 +154,18 @@ void fx2usb_flush(usb_dev_handle *dh)
 int fx2usb_send_chunk(usb_dev_handle *dh, int ep, const void *data, int len)
 {
 	int ret;
+#if 0
+	if (ep == 2) {
+		int i;
+		fprintf(stderr, "<ep2:%4d bytes> ...", len);
+		for (i = len-16; i < len; i++) {
+			if (i < 0)
+				continue;
+			fprintf(stderr, " %02x", ((unsigned char*)data)[i]);
+		}
+		fprintf(stderr, "\n");
+	}
+#endif
 retry_write:
 	ret = usb_bulk_write(dh, ep, data, len, 1000);
 	if (ret == -ETIMEDOUT) {

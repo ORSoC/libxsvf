@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include "libxsvf.h"
 #include "fx2usb-interface.h"
@@ -75,21 +76,47 @@ char *correct_cksum =
 
 FILE *file_fp = NULL;
 
+int mode_frequency = 0;
+int mode_async_check = 0;
 int mode_internal_cpld = 0;
 int mode_8bit_per_cycle = 0;
 
 usb_dev_handle *fx2usb;
 
 int sync_count;
+int tck_cycle_count;
 int blocks_without_sync;
 
-#define FORCE_SYNC_AFTER_N_BLOCKS 1000
+int tdo_check_period_100;
+int tdo_check_thisperiod;
+
+/* This constant are used to determine when the error status should be synced.
+ * Syncinc to often would slow things down, syncinc not often enough might cause
+ * errors beeing reported by far to late.
+ */
+#define FORCE_SYNC_AFTER_N_BLOCKS 100
+#define FORCE_SYNC_MIN_PERIOD   10000
+#define FORCE_SYNC_INIT_PERIOD 100000
 
 unsigned char fx2usb_retbuf[65];
 int fx2usb_retlen;
 
-unsigned char commandbuf[2048];
+unsigned char commandbuf[4096];
 int commandbuf_len;
+
+static void shrink_8bit_to_4bit()
+{
+	int i;
+	if ((commandbuf_len & 1) != 0)
+		commandbuf[commandbuf_len++] = 0;
+	for (i = 0; i<commandbuf_len; i++) {
+		if ((i & 1) == 0)
+			commandbuf[i >> 1] = (commandbuf[i >> 1] & 0xf0) | commandbuf[i];
+		else
+			commandbuf[i >> 1] = (commandbuf[i >> 1] & 0x0f) | (commandbuf[i] << 4);
+	}
+	commandbuf_len = commandbuf_len >> 1;
+}
 
 void fx2usb_command(const char *cmd)
 {
@@ -98,7 +125,15 @@ void fx2usb_command(const char *cmd)
 	fx2usb_recv_chunk(fx2usb, 1, fx2usb_retbuf, sizeof(fx2usb_retbuf)-1, &fx2usb_retlen);
 	fx2usb_retbuf[fx2usb_retlen] = 0;
 	// fprintf(stderr, "'%s'\n", fx2usb_retbuf);
+	
+	if (strchr((char*)fx2usb_retbuf, '!') != NULL) {
+		fprintf(stderr, "Internal ERROR in communication with probe: '%s' => '%s'\n", cmd, fx2usb_retbuf);
+		abort();
+	}
 }
+
+static int xpcu_set_frequency(struct libxsvf_host *h UNUSED, int v);
+static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int tdo, int rmask UNUSED, int sync);
 
 static int xpcu_setup(struct libxsvf_host *h UNUSED)
 {
@@ -110,6 +145,12 @@ static int xpcu_setup(struct libxsvf_host *h UNUSED)
 	if (!mode_internal_cpld) {
 		fx2usb_command("B1");
 	}
+
+	if (mode_frequency)
+		xpcu_set_frequency(h, mode_frequency * 1000);
+
+	tdo_check_period_100 = FORCE_SYNC_INIT_PERIOD * 100;
+	tdo_check_thisperiod = 0;
 
 	return 0;
 }
@@ -131,10 +172,55 @@ static int xpcu_shutdown(struct libxsvf_host *h UNUSED)
 	return rc;
 }
 
-static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs UNUSED, int tms UNUSED, long num_tck UNUSED)
+static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs, int tms, long num_tck)
 {
-	/* FIXME */
-	return;
+	struct timeval tv1, tv2;
+	long rem_usecs;
+
+	if (!mode_internal_cpld)
+	{
+		sync_count = 0x08 | ((sync_count+1) & 0x0f);
+		commandbuf[commandbuf_len++] = 0x01;
+		commandbuf[commandbuf_len++] = sync_count;
+		if (!mode_8bit_per_cycle)
+			shrink_8bit_to_4bit();
+		fx2usb_send_chunk(fx2usb, 2, commandbuf, commandbuf_len);
+		commandbuf_len = 0;
+
+		char cmd[3];
+		snprintf(cmd, 3, "W%x", sync_count);
+		fx2usb_command(cmd);
+	}
+
+	gettimeofday(&tv1, NULL);
+
+	while (num_tck > 0) {
+		xpcu_pulse_tck(h, tms, 0, -1, 0, 0);
+		num_tck--;
+	}
+
+	while (usecs > 0) {
+		gettimeofday(&tv2, NULL);
+		rem_usecs = usecs - ((tv2.tv_sec - tv1.tv_sec)*1000000 + (tv2.tv_usec - tv1.tv_usec));
+		if (rem_usecs <= 0)
+			break;
+		usleep(rem_usecs);
+	}
+
+	if (!mode_internal_cpld)
+	{
+		sync_count = 0x08 | ((sync_count+1) & 0x0f);
+		commandbuf[commandbuf_len++] = 0x01;
+		commandbuf[commandbuf_len++] = sync_count;
+		if (!mode_8bit_per_cycle)
+			shrink_8bit_to_4bit();
+		fx2usb_send_chunk(fx2usb, 2, commandbuf, commandbuf_len);
+		commandbuf_len = 0;
+
+		char cmd[3];
+		snprintf(cmd, 3, "W%x", sync_count);
+		fx2usb_command(cmd);
+	}
 }
 
 static int xpcu_getbyte(struct libxsvf_host *h UNUSED)
@@ -142,45 +228,36 @@ static int xpcu_getbyte(struct libxsvf_host *h UNUSED)
 	return fgetc(file_fp);
 }
 
-static void shrink_8bit_to_4bit()
-{
-	int i;
-	if ((commandbuf_len & 1) != 0)
-		commandbuf[commandbuf_len++] = 0;
-	for (i = 0; i<commandbuf_len; i++) {
-		if ((i & 1) == 0)
-			commandbuf[i >> 1] = (commandbuf[i >> 1] & 0xf0) | commandbuf[i];
-		else
-			commandbuf[i >> 1] = (commandbuf[i >> 1] & 0x0f) | (commandbuf[i] << 4);
-	}
-	commandbuf_len = commandbuf_len >> 1;
-}
-
 static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int tdo, int rmask UNUSED, int sync)
 {
-	int max_commandbuf = mode_internal_cpld ? 50 : mode_8bit_per_cycle ? 1024 : 20148;
+	int max_commandbuf = mode_internal_cpld ? 50 : mode_8bit_per_cycle ? 1000 : 2000;
+	int dummy_sync = 0;
+
+	tck_cycle_count++;
 
 	if (tdo >= 0) {
 		commandbuf[commandbuf_len++] = 0x08 | ((tdo & 1) << 2) | ((tms & 1) << 1) | ((tdi & 1) << 0);
+		tdo_check_period_100 = (tdo_check_period_100 * 99) / 100 + tdo_check_thisperiod;
+		tdo_check_thisperiod = 0;
 	} else {
 		commandbuf[commandbuf_len++] = 0x04 | ((tms & 1) << 1) | ((tdi & 1) << 0);
 	}
 
-	if (!sync && tdo >= 0 && blocks_without_sync > FORCE_SYNC_AFTER_N_BLOCKS &&
-			commandbuf_len >= (max_commandbuf - 10)) {
-		blocks_without_sync = 0;
-		sync = 1;
+	if (mode_async_check == 0)
+	{
+		if (!sync && tdo >= 0 && (blocks_without_sync > FORCE_SYNC_AFTER_N_BLOCKS || tdo_check_period_100 > FORCE_SYNC_MIN_PERIOD))
+			sync = 1;
+		if (!sync && !mode_internal_cpld && blocks_without_sync > 10*FORCE_SYNC_AFTER_N_BLOCKS && commandbuf_len >= (max_commandbuf - 10))
+			dummy_sync = 1;
 	}
 
-	if (sync && !mode_internal_cpld) {
+	if ((dummy_sync || sync) && !mode_internal_cpld) {
 		sync_count = 0x08 | ((sync_count+1) & 0x0f);
 		commandbuf[commandbuf_len++] = 0x01;
 		commandbuf[commandbuf_len++] = sync_count;
 	}
 
-	if (commandbuf_len >= (max_commandbuf - 4) || sync) {
-		if (!sync)
-			blocks_without_sync++;
+	if (commandbuf_len >= (max_commandbuf - 4) || sync || dummy_sync) {
 		if (!mode_8bit_per_cycle)
 			shrink_8bit_to_4bit();
 		if (mode_internal_cpld) {
@@ -191,10 +268,11 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 		} else {
 			fx2usb_send_chunk(fx2usb, 2, commandbuf, commandbuf_len);
 		}
+		blocks_without_sync++;
 		commandbuf_len = 0;
 	}
 
-	if (sync && !mode_internal_cpld) {
+	if ((sync || dummy_sync) && !mode_internal_cpld) {
 		char cmd[3];
 		snprintf(cmd, 3, "W%x", sync_count);
 		fx2usb_command(cmd);
@@ -202,9 +280,15 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 
 	if (sync) {
 		fx2usb_command("S");
+		blocks_without_sync = 0;
 		if (fx2usb_retbuf[mode_internal_cpld ? 1 : 0] == '1')
 			return -1;
 		return fx2usb_retbuf[mode_internal_cpld ? 5 : 4] == '1';
+	}
+
+	if (dummy_sync) {
+		fx2usb_command("P");
+		blocks_without_sync = 0;
 	}
 
 	return tdo < 0 ? 1 : tdo;
@@ -237,6 +321,7 @@ static int xpcu_sync(struct libxsvf_host *h UNUSED)
 	}
 
 	fx2usb_command("S");
+	blocks_without_sync = 0;
 	if (fx2usb_retbuf[mode_internal_cpld ? 1 : 0] == '1')
 		return -1;
 
@@ -249,15 +334,6 @@ static int xpcu_set_frequency(struct libxsvf_host *h UNUSED, int v)
 
 	if (mode_internal_cpld)
 		return 0;
-
-	while (delay < 250 && v < freq) {
-		/* FIXME!!!!!! */
-		freq /= 2;
-		delay++;
-	}
-
-	if (v < freq)
-		fprintf(stderr, "Requested FREQUENCY %dHz is to low! Using minimum value %dHz instead.\n", v, freq);
 
 	if (!mode_internal_cpld) {
 		sync_count = 0x08 | ((sync_count+1) & 0x0f);
@@ -283,11 +359,34 @@ static int xpcu_set_frequency(struct libxsvf_host *h UNUSED, int v)
 		fx2usb_command(cmd);
 	}
 
+	while (delay < 250 && v < freq) {
+		delay++;
+		freq = 48000000 / (2*delay + 2);
+	}
+
+	if (v < freq)
+		fprintf(stderr, "Requested FREQUENCY %dHz is to low! Using minimum value %dHz instead.\n", v, freq);
+
 	char cmd[4];
 	snprintf(cmd, 4, "T%02x", delay);
 	fx2usb_command(cmd);
 
 	mode_8bit_per_cycle = delay != 0;
+
+	if (!mode_internal_cpld)
+	{
+		sync_count = 0x08 | ((sync_count+1) & 0x0f);
+		commandbuf[commandbuf_len++] = 0x01;
+		commandbuf[commandbuf_len++] = sync_count;
+		if (!mode_8bit_per_cycle)
+			shrink_8bit_to_4bit();
+		fx2usb_send_chunk(fx2usb, 2, commandbuf, commandbuf_len);
+		commandbuf_len = 0;
+
+		char cmd[3];
+		snprintf(cmd, 3, "W%x", sync_count);
+		fx2usb_command(cmd);
+	}
 
 	return 0;
 }
@@ -345,7 +444,14 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2011  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -P ] { -p | -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "Usage: %s [ -f kHz ] [ -A ] [ -P ] { -p | -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -f kHz\n");
+	fprintf(stderr, "          Run probe with the specified frequency (default=24000)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -A\n");
+	fprintf(stderr, "          Use full asynchonous error checking\n");
+	fprintf(stderr, "          (very fast but error reporting might be delayed)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -P\n");
 	fprintf(stderr, "          Use CPLD on probe as target device\n");
@@ -373,12 +479,11 @@ int main(int argc, char **argv)
 
 	int done_initialization = 0;
 
-	fprintf(stderr, "\n           *** This is work in progress! ***\n\n");
-
 	progname = argc >= 1 ? argv[0] : "xsvftool-xpcu";
-	while ((opt = getopt(argc, argv, "Pps:x:c")) != -1)
+	while ((opt = getopt(argc, argv, "f:APps:x:c")) != -1)
 	{
-		if (!done_initialization && (opt == 'p' || opt == 's' || opt == 'x' || opt == 'c')) {
+		if (!done_initialization && (opt == 'p' || opt == 's' || opt == 'x' || opt == 'c'))
+		{
 			usb_init();
 			usb_find_busses();
 			usb_find_devices();
@@ -386,21 +491,22 @@ int main(int argc, char **argv)
 			fx2usb = CHECK_PTR(fx2usb_open(), != NULL);
 			CHECK(fx2usb_claim(fx2usb), == 0);
 
-			// FILE *ihexf = CHECK_PTR(fopen("firmware.ihx", "r"), != NULL);
 			FILE *ihexf = CHECK_PTR(fmemopen(firmware_ihx, sizeof(firmware_ihx), "r"), != NULL);
 			CHECK(fx2usb_upload_ihex(fx2usb, ihexf), == 0);
 			CHECK(fclose(ihexf), == 0);
 
-			fx2usb_command("C");
-			if (memcmp(correct_cksum, fx2usb_retbuf, 6)) {
-				fprintf(stderr, "Mismatch in CPLD checksum (is=%.6s, should=%s): reprogram CPLD on probe..\n",
-						fx2usb_retbuf, correct_cksum);
-				i = mode_internal_cpld;
-				mode_internal_cpld = 1;
-				file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
-				libxsvf_play(&h, LIBXSVF_MODE_SVF);
-				mode_internal_cpld = i;
-				fclose(file_fp);
+			if (opt != 'p') {
+				fx2usb_command("C");
+				if (memcmp(correct_cksum, fx2usb_retbuf, 6)) {
+					fprintf(stderr, "Mismatch in CPLD checksum (is=%.6s, should=%s): reprogramming CPLD on probe..\n",
+							fx2usb_retbuf, correct_cksum);
+					i = mode_internal_cpld;
+					mode_internal_cpld = 1;
+					file_fp = CHECK_PTR(fmemopen(hardware_svf, sizeof(hardware_svf), "r"), != NULL);
+					libxsvf_play(&h, LIBXSVF_MODE_SVF);
+					mode_internal_cpld = i;
+					fclose(file_fp);
+				}
 			}
 
 			done_initialization = 1;
@@ -408,14 +514,21 @@ int main(int argc, char **argv)
 
 		switch (opt)
 		{
+		case 'f':
+			mode_frequency = atoi(optarg);
+			break;
 		case 'P':
 			mode_internal_cpld = 1;
+			break;
+		case 'A':
+			mode_async_check = 1;
 			break;
 		case 'p':
 			gotaction = 1;
 			i = mode_internal_cpld;
 			mode_internal_cpld = 1;
 			file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
+			fprintf(stderr, "(Re-)programming CPLD on the probe..\n");
 			libxsvf_play(&h, LIBXSVF_MODE_SVF);
 			mode_internal_cpld = i;
 			fclose(file_fp);
@@ -432,6 +545,7 @@ int main(int argc, char **argv)
 				rc = 1;
 				break;
 			}
+			fprintf(stderr, "Playing %s file `%s'..\n", opt == 's' ? "SVF" : "XSVF", optarg);
 			if (libxsvf_play(&h, opt == 's' ? LIBXSVF_MODE_SVF : LIBXSVF_MODE_XSVF) < 0) {
 				fprintf(stderr, "Error while playing %s file `%s'.\n", opt == 's' ? "SVF" : "XSVF", optarg);
 				rc = 1;
@@ -441,6 +555,7 @@ int main(int argc, char **argv)
 			break;
 		case 'c':
 			gotaction = 1;
+			fprintf(stderr, "Scanning JTAG chain..\n");
 			if (libxsvf_play(&h, LIBXSVF_MODE_SCAN) < 0) {
 				fprintf(stderr, "Error while scanning JTAG chain.\n");
 				rc = 1;
@@ -459,6 +574,12 @@ int main(int argc, char **argv)
 		fx2usb_release(fx2usb);
 		usb_close(fx2usb);
 	}
+
+	fprintf(stderr, "Total number of JTAG clock cycles performed: %d\n", tck_cycle_count);
+	if (rc == 0)
+		fprintf(stderr, "READY.\n");
+	else
+		fprintf(stderr, "TERMINATED WITH ERROR(s)! (see above)\n");
 
 	return rc;
 }

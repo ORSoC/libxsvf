@@ -148,6 +148,7 @@ struct bitdata_s {
 	unsigned char *tdo_data;
 	unsigned char *tdo_mask;
 	unsigned char *ret_mask;
+	int has_tdo_data;
 };
 
 static void bitdata_free(struct libxsvf_host *h, struct bitdata_s *bd, int offset)
@@ -178,6 +179,7 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 {
 	int i, j;
 	bd->len = 0;
+	bd->has_tdo_data = 0;
 	while (*p >= '0' && *p <= '9') {
 		bd->len = bd->len * 10 + (*p - '0');
 		p++;
@@ -202,6 +204,7 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 		if (!strtokencmp(p, "TDO")) {
 			p += strtokenskip(p);
 			dp = &bd->tdo_data;
+			bd->has_tdo_data = 1;
 			memnum = 1;
 		}
 		if (!strtokencmp(p, "SMASK")) {
@@ -266,7 +269,7 @@ static const char *bitdata_parse(struct libxsvf_host *h, const char *p, struct b
 			printf(" %02x", bd->tdi_data[i]);
 		printf("\n");
 	}
-	if (bd->tdo_data) {
+	if (bd->tdo_data && has_tdo_data) {
 		printf("TDO DATA:");
 		for (i=0; i<bd->alloced_bytes; i++)
 			printf(" %02x", bd->tdo_data[i]);
@@ -311,7 +314,7 @@ static int bitdata_play(struct libxsvf_host *h, struct bitdata_s *bd, enum libxs
 				tdi = getbit(bd->tdi_data, i);
 		}
 		int tdo = -1;
-		if (bd->tdo_data && (!bd->tdo_mask || getbit(bd->tdo_mask, i)))
+		if (bd->tdo_data && bd->has_tdo_data && (!bd->tdo_mask || getbit(bd->tdo_mask, i)))
 			tdo = getbit(bd->tdo_data, i);
 		int rmask = bd->ret_mask && getbit(bd->ret_mask, i);
 		if (LIBXSVF_HOST_PULSE_TCK(tms, tdi, tdo, rmask, 0) < 0)

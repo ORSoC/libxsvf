@@ -2,5 +2,23 @@
 xsvftool-xpcu - An (X)SVF player for the Xilinx Platform Cable USB
 ==================================================================
 
-  **WARNING: This is work under construction!**
+This program can be used to play SVF and XSVF files on the "Xilinx
+Platform Cable USB" family of JTAG probes.
+
+It is based on the libxsvf library:
+http://www.clifford.at/libxsvf/
+
+This tool replaces the original CPLD firmware from Xilinx when run
+on one of the probes. However: The Xilinx tools (i.e. impact) programs
+the CPLD again with the Xilinx firmware whenever needed. So there is
+not problem with that.
+
+The file 'firmware.c' also contains a brief description of the pin mappings
+between the the Cypress CY7C68013A-100AIX and the Xilinx XC2C256-7VQ100
+on the probe as used by this software, as well as a brief description of
+the USB protocol this software is using.
+
+With this software it is possible to use JTAG clock speeds up to 24 MHz.
+But with the high frequencies there are "gaps" in the transmittion resulting
+in an effective transfer rate of approx 6 MBit/s.
 
