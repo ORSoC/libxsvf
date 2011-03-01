@@ -485,7 +485,7 @@ int main(int argc, char **argv)
 	progname = argc >= 1 ? argv[0] : "xsvftool-xpcu";
 	while ((opt = getopt(argc, argv, "f:APpEs:x:c")) != -1)
 	{
-		if (!done_initialization && (opt == 'p' || opt == 's' || opt == 'x' || opt == 'c'))
+		if (!done_initialization && (opt == 'p' || opt == 'E' || opt == 's' || opt == 'x' || opt == 'c'))
 		{
 			usb_init();
 			usb_find_busses();
@@ -532,10 +532,10 @@ int main(int argc, char **argv)
 			i = mode_internal_cpld;
 			mode_internal_cpld = 1;
 			if (opt == 'p') {
-				file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
+				file_fp = CHECK_PTR(fmemopen(hardware_svf, sizeof(hardware_svf), "r"), != NULL);
 				fprintf(stderr, "(Re-)programming CPLD on the probe..\n");
 			} else {
-				file_fp = CHECK_PTR(fopen("erasecpld.svf", "r"), != NULL);
+				file_fp = CHECK_PTR(fmemopen(erasecpld_svf, sizeof(erasecpld_svf), "r"), != NULL);
 				fprintf(stderr, "Erasing CPLD on the probe..\n");
 			}
 			libxsvf_play(&h, LIBXSVF_MODE_SVF);
