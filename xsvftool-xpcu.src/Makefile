@@ -33,12 +33,12 @@ LDLIBS = -lusb -lreadline -lxsvf
 SDCC = sdcc
 SDCFLAGS = -mmcs51 --xram-loc 0x2000
 
-all: xsvftool-xpcu hardware.svf firmware.ihx
+all: xsvftool-xpcu
 
-xsvftool-xpcu: xsvftool-xpcu.o fx2usb-interface.o $(LIBXSVFDIR)/libxsvf.a
+xsvftool-xpcu: filedata.h hardware_cksum_c.inc $(LIBXSVFDIR)/libxsvf.a xsvftool-xpcu.o fx2usb-interface.o
 	$(CC) $(LDFLAGS) xsvftool-xpcu.o fx2usb-interface.o $(LDLIBS) -o $@
 
-hardware.svf: hardware.sh hardware.ucf hardware.v
+hardware.svf: hardware.sh hardware.ucf hardware.v hardware_cksum_vl.inc
 	bash hardware.sh
 
 firmware.ihx: firmware.c
@@ -49,6 +49,19 @@ firmware.ihx: gpifprog_fixed.c
 gpifprog_fixed.c: gpifprog.c
 	sed 's/ xdata / /g;' < $< > $@
 
+$(LIBXSVFDIR)/libxsvf.a:
+	$(MAKE) -C $(LIBXSVFDIR) libxsvf.a
+
+hardware_cksum_vl.inc hardware_cksum_c.inc: hardware.v
+	echo "'h$$(md5sum hardware.v | cut -c1-6 | tr a-z A-Z)" > hardware_cksum_vl.inc
+	echo "\"$$(md5sum hardware.v | cut -c1-6 | tr a-z A-Z)\"" > hardware_cksum_c.inc
+
+filedata.h: hardware.svf firmware.ihx
+	{ echo "unsigned char hardware_svf[] = { " && perl -pe 's/(.)/ord($$1).","/sge' hardware.svf && echo "};" && \
+	echo "unsigned char firmware_ihx[] = { " && perl -pe 's/(.)/ord($$1).","/sge' firmware.ihx && echo "};"; } | \
+	perl -pe 's/(.{70}.*?,)/$$1\n/g' > filedata.h_new
+	mv filedata.h_new filedata.h
+
 clean:
 	rm -f firmware.asm firmware.lnk firmware.lst firmware.map
 	rm -f firmware.mem firmware.rel firmware.rst firmware.sym
@@ -58,9 +71,9 @@ clean:
 	rm -f hardware.pnx hardware.prj hardware.rpt hardware.svf hardware.syr
 	rm -f hardware.vm6 hardware.xml hardware.xst hardware_xst.xrpt
 	rm -f hardware.cxt hardware.gyd hardware.jed _impactbatch.log tmperr.err
+	rm -f hardware_cksum_vl.inc hardware_cksum_c.inc gpifprog_fixed.c
 	rm -rf hardware_html xilinx xlnx_auto_0_xdb _xmsgs
-	rm -f gpifprog_fixed.c core *.o *.d
-	rm -f firmware.ihx xsvftool-xpcu
+	rm -f filedata.h firmware.ihx xsvftool-xpcu core *.o *.d
 
 -include *.d
 

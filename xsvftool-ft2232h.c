@@ -27,7 +27,7 @@
  *  High Speed USB to Multipurpose UART/FIFO IC.
  *
  *  This also serves as an example program for using libxvsf with asynchonous
- *  hardware interfaces. Have a look at 'xsvftool.c' for a simple libxsvf
+ *  hardware interfaces. Have a look at 'xsvftool-gpio.c' for a simple libxsvf
  *  example for synchonous interfaces (such as register mapped GPIOs).
  *
  *  IMPORTANT NOTE: You need libftdi [1] (version 0.16 or newer) installed
@@ -656,7 +656,7 @@ static void help()
 	fprintf(stderr, "A JTAG SVF/XSVF Player based on libxsvf for the FTDI FT2232H USB Dual\n");
 	fprintf(stderr, "High Speed USB to Multipurpose UART/FIFO IC.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "xsvftool, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
+	fprintf(stderr, "xsvftool-ft2232h, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
 	fprintf(stderr, "Copyright (C) 2009  RIEGL Research ForschungsGmbH\n");
 	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
@@ -686,7 +686,7 @@ int main(int argc, char **argv)
 	const char *realloc_name = NULL;
 	int opt, i, j;
 
-	progname = argc >= 1 ? argv[0] : "xvsftool";
+	progname = argc >= 1 ? argv[0] : "xsvftool-ft2232h";
 	while ((opt = getopt(argc, argv, "r:vLBx:s:c")) != -1)
 	{
 		switch (opt)

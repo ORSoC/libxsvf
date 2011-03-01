@@ -24,12 +24,20 @@
  *
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 
 #include "libxsvf.h"
 #include "fx2usb-interface.h"
+
+#include "filedata.h"
+
+char *correct_cksum =
+#include "hardware_cksum_c.inc"
+;
 
 #define UNUSED __attribute__((unused))
 
@@ -66,35 +74,61 @@
 /**** END: http://svn.clifford.at/tools/trunk/examples/check.h ****/
 
 FILE *file_fp = NULL;
-long file_size, file_fpos;
 
 int mode_internal_cpld = 0;
 int mode_8bit_per_cycle = 0;
 
 usb_dev_handle *fx2usb;
 
-int sync_count = 0;
+int sync_count;
+int blocks_without_sync;
+
+#define FORCE_SYNC_AFTER_N_BLOCKS 1000
 
 unsigned char fx2usb_retbuf[65];
 int fx2usb_retlen;
 
+unsigned char commandbuf[2048];
+int commandbuf_len;
+
 void fx2usb_command(const char *cmd)
 {
-	fprintf(stderr, "Sending FX2USB Command: '%s' => ", cmd);
+	// fprintf(stderr, "Sending FX2USB Command: '%s' => ", cmd);
 	fx2usb_send_chunk(fx2usb, 1, cmd, strlen(cmd));
 	fx2usb_recv_chunk(fx2usb, 1, fx2usb_retbuf, sizeof(fx2usb_retbuf)-1, &fx2usb_retlen);
 	fx2usb_retbuf[fx2usb_retlen] = 0;
-	fprintf(stderr, "'%s'\n", fx2usb_retbuf);
+	// fprintf(stderr, "'%s'\n", fx2usb_retbuf);
 }
 
 static int xpcu_setup(struct libxsvf_host *h UNUSED)
 {
+	sync_count = 0;
+	blocks_without_sync = 0;
+	commandbuf_len = 0;
+	fx2usb_command("R");
+
+	if (!mode_internal_cpld) {
+		fx2usb_command("B1");
+	}
+
 	return 0;
 }
 
 static int xpcu_shutdown(struct libxsvf_host *h UNUSED)
 {
-	return 0;
+	int rc = 0;
+	if (commandbuf_len != 0) {
+		fprintf(stderr, "Found %d unsynced commands in command buffer on interface shutdown!\n", commandbuf_len);
+		commandbuf_len = 0;
+		rc = -1;
+	}
+	fx2usb_command("S");
+	if (fx2usb_retbuf[mode_internal_cpld ? 1 : 0] == '1') {
+		fprintf(stderr, "Found pending errors in interface status on shutdown!\n");
+		rc = -1;
+	}
+	fx2usb_command("R");
+	return rc;
 }
 
 static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs UNUSED, int tms UNUSED, long num_tck UNUSED)
@@ -105,14 +139,8 @@ static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs UNUSED, int tm
 
 static int xpcu_getbyte(struct libxsvf_host *h UNUSED)
 {
-	file_fpos++;
-	if ((file_fpos % 1024) == 0 || file_fpos == file_size)
-		fprintf(stderr, "\r%6.1f%%\r", (file_fpos*100.0)/file_size);
 	return fgetc(file_fp);
 }
-
-unsigned char commandbuf[2048];
-int commandbuf_len = 0;
 
 static void shrink_8bit_to_4bit()
 {
@@ -130,10 +158,18 @@ static void shrink_8bit_to_4bit()
 
 static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int tdo, int rmask UNUSED, int sync)
 {
+	int max_commandbuf = mode_internal_cpld ? 50 : mode_8bit_per_cycle ? 1024 : 20148;
+
 	if (tdo >= 0) {
 		commandbuf[commandbuf_len++] = 0x08 | ((tdo & 1) << 2) | ((tms & 1) << 1) | ((tdi & 1) << 0);
 	} else {
 		commandbuf[commandbuf_len++] = 0x04 | ((tms & 1) << 1) | ((tdi & 1) << 0);
+	}
+
+	if (!sync && tdo >= 0 && blocks_without_sync > FORCE_SYNC_AFTER_N_BLOCKS &&
+			commandbuf_len >= (max_commandbuf - 10)) {
+		blocks_without_sync = 0;
+		sync = 1;
 	}
 
 	if (sync && !mode_internal_cpld) {
@@ -142,8 +178,9 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 		commandbuf[commandbuf_len++] = sync_count;
 	}
 
-	int max_commandbuf = mode_internal_cpld ? 50 : mode_8bit_per_cycle ? 1024 : 20148;
 	if (commandbuf_len >= (max_commandbuf - 4) || sync) {
+		if (!sync)
+			blocks_without_sync++;
 		if (!mode_8bit_per_cycle)
 			shrink_8bit_to_4bit();
 		if (mode_internal_cpld) {
@@ -191,6 +228,7 @@ static int xpcu_sync(struct libxsvf_host *h UNUSED)
 	} else {
 		fx2usb_send_chunk(fx2usb, 2, commandbuf, commandbuf_len);
 	}
+	commandbuf_len = 0;
 
 	if (!mode_internal_cpld) {
 		char cmd[3];
@@ -207,7 +245,50 @@ static int xpcu_sync(struct libxsvf_host *h UNUSED)
 
 static int xpcu_set_frequency(struct libxsvf_host *h UNUSED, int v)
 {
-	fprintf(stderr, "Ignoring FREQUENCY command (f=%dHz).\n", v);
+	int freq = 24000000, delay = 0;
+
+	if (mode_internal_cpld)
+		return 0;
+
+	while (delay < 250 && v < freq) {
+		/* FIXME!!!!!! */
+		freq /= 2;
+		delay++;
+	}
+
+	if (v < freq)
+		fprintf(stderr, "Requested FREQUENCY %dHz is to low! Using minimum value %dHz instead.\n", v, freq);
+
+	if (!mode_internal_cpld) {
+		sync_count = 0x08 | ((sync_count+1) & 0x0f);
+		commandbuf[commandbuf_len++] = 0x01;
+		commandbuf[commandbuf_len++] = sync_count;
+	}
+
+	if (!mode_8bit_per_cycle)
+		shrink_8bit_to_4bit();
+	if (mode_internal_cpld) {
+		unsigned char tempbuf[64];
+		tempbuf[0] = 'J';
+		memcpy(tempbuf+1, commandbuf, commandbuf_len);
+		fx2usb_send_chunk(fx2usb, 1, tempbuf, commandbuf_len + 1);
+	} else {
+		fx2usb_send_chunk(fx2usb, 2, commandbuf, commandbuf_len);
+	}
+	commandbuf_len = 0;
+
+	if (!mode_internal_cpld) {
+		char cmd[3];
+		snprintf(cmd, 3, "W%x", sync_count);
+		fx2usb_command(cmd);
+	}
+
+	char cmd[4];
+	snprintf(cmd, 4, "T%02x", delay);
+	fx2usb_command(cmd);
+
+	mode_8bit_per_cycle = delay != 0;
+
 	return 0;
 }
 
@@ -252,38 +333,133 @@ static struct libxsvf_host h = {
 	.realloc = xpcu_realloc
 };
 
-int main()
+const char *progname;
+
+static void help()
 {
+	fprintf(stderr, "\n");
+	fprintf(stderr, "A JTAG SVF/XSVF Player based on libxsvf for the Xilinx Platform Cable USB\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "xsvftool-xpcu, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
+	fprintf(stderr, "Copyright (C) 2011  RIEGL Research ForschungsGmbH\n");
+	fprintf(stderr, "Copyright (C) 2011  Clifford Wolf <clifford@clifford.at>\n");
+	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Usage: %s [ -P ] { -p | -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -P\n");
+	fprintf(stderr, "          Use CPLD on probe as target device\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -p\n");
+	fprintf(stderr, "          Force (re-)programming the CPLD on the probe \n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -s svf-file\n");
+	fprintf(stderr, "          Play the specified SVF file\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -x xsvf-file\n");
+	fprintf(stderr, "          Play the specified XSVF file\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -c\n");
+	fprintf(stderr, "          List devices in JTAG chain\n");
+	fprintf(stderr, "\n");
+	exit(1);
+}
+
+int main(int argc, char **argv)
+{
+	int rc = 0;
+	int gotaction = 0;
+	int opt, i;
+
+	int done_initialization = 0;
+
 	fprintf(stderr, "\n           *** This is work in progress! ***\n\n");
 
-	usb_init();
-	usb_find_busses();
-	usb_find_devices();
+	progname = argc >= 1 ? argv[0] : "xsvftool-xpcu";
+	while ((opt = getopt(argc, argv, "Pps:x:c")) != -1)
+	{
+		if (!done_initialization && (opt == 'p' || opt == 's' || opt == 'x' || opt == 'c')) {
+			usb_init();
+			usb_find_busses();
+			usb_find_devices();
 
-	fx2usb = CHECK_PTR(fx2usb_open(), != NULL);
-	CHECK(fx2usb_claim(fx2usb), == 0);
+			fx2usb = CHECK_PTR(fx2usb_open(), != NULL);
+			CHECK(fx2usb_claim(fx2usb), == 0);
 
-	FILE *ihexf = CHECK_PTR(fopen("firmware.ihx", "r"), != NULL);
-	CHECK(fx2usb_upload_ihex(fx2usb, ihexf), == 0);
-	CHECK(fclose(ihexf), == 0);
+			// FILE *ihexf = CHECK_PTR(fopen("firmware.ihx", "r"), != NULL);
+			FILE *ihexf = CHECK_PTR(fmemopen(firmware_ihx, sizeof(firmware_ihx), "r"), != NULL);
+			CHECK(fx2usb_upload_ihex(fx2usb, ihexf), == 0);
+			CHECK(fclose(ihexf), == 0);
 
-	commandbuf_len = 0;
-	mode_internal_cpld = 1;
-	libxsvf_play(&h, LIBXSVF_MODE_SCAN);
+			fx2usb_command("C");
+			if (memcmp(correct_cksum, fx2usb_retbuf, 6)) {
+				fprintf(stderr, "Mismatch in CPLD checksum (is=%.6s, should=%s): reprogram CPLD on probe..\n",
+						fx2usb_retbuf, correct_cksum);
+				i = mode_internal_cpld;
+				mode_internal_cpld = 1;
+				file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
+				libxsvf_play(&h, LIBXSVF_MODE_SVF);
+				mode_internal_cpld = i;
+				fclose(file_fp);
+			}
 
-	file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
-	fseek(file_fp, 0L, SEEK_END);
-	file_size = ftell(file_fp);
-	fseek(file_fp, 0L, SEEK_SET);
+			done_initialization = 1;
+		}
 
-	commandbuf_len = 0;
-	mode_internal_cpld = 1;
-	libxsvf_play(&h, LIBXSVF_MODE_SVF);
-	fclose(file_fp);
+		switch (opt)
+		{
+		case 'P':
+			mode_internal_cpld = 1;
+			break;
+		case 'p':
+			gotaction = 1;
+			i = mode_internal_cpld;
+			mode_internal_cpld = 1;
+			file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
+			libxsvf_play(&h, LIBXSVF_MODE_SVF);
+			mode_internal_cpld = i;
+			fclose(file_fp);
+			break;
+		case 'x':
+		case 's':
+			gotaction = 1;
+			if (!strcmp(optarg, "-"))
+				file_fp = stdin;
+			else
+				file_fp = fopen(optarg, "rb");
+			if (file_fp == NULL) {
+				fprintf(stderr, "Can't open %s file `%s': %s\n", opt == 's' ? "SVF" : "XSVF", optarg, strerror(errno));
+				rc = 1;
+				break;
+			}
+			if (libxsvf_play(&h, opt == 's' ? LIBXSVF_MODE_SVF : LIBXSVF_MODE_XSVF) < 0) {
+				fprintf(stderr, "Error while playing %s file `%s'.\n", opt == 's' ? "SVF" : "XSVF", optarg);
+				rc = 1;
+			}
+			if (strcmp(optarg, "-"))
+				fclose(file_fp);
+			break;
+		case 'c':
+			gotaction = 1;
+			if (libxsvf_play(&h, LIBXSVF_MODE_SCAN) < 0) {
+				fprintf(stderr, "Error while scanning JTAG chain.\n");
+				rc = 1;
+			}
+			break;
+		default:
+			help();
+			break;
+		}
+	}
 
-	fx2usb_release(fx2usb);
-	usb_close(fx2usb);
+	if (!gotaction)
+		help();
 
-	return 0;
+	if (done_initialization) {
+		fx2usb_release(fx2usb);
+		usb_close(fx2usb);
+	}
+
+	return rc;
 }
 

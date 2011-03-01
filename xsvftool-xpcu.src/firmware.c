@@ -52,15 +52,11 @@
  *  Response: OK (I<n>)
  *    Set INIT_INT to <n>
  *
- *  Request: L<r><g>
- *  Response: OK (L<r><g>)
- *    Set LEDs (<r> = red, <g> = green)
- *
  *  Request: S
- *  Response: <n><m><k><p><x><y> (S)
+ *  Response: <n><m><k><p><x><y><s> (S)
  *    Read and reset status bits
  *    (<n> = FX2-JTAG-ERR, <m> = CPLD-JTAG-ERR, <k> = INIT_B_INT,
- *     <p> = SLOE_INT, <x> = FX2-JTAG-TDO, <y> = CPLD-JTAG-TDO)
+ *     <p> = SLOE_INT, <x> = FX2-JTAG-TDO, <y> = CPLD-JTAG-TDO, <s> = SYNC)
  *
  *  Request: J<bindata>
  *  Response: -- NONE --
@@ -275,6 +271,7 @@ void proc_command_r(void)
 	/* Assert CPLD reset pins */
 	IOD = bmBIT0 | bmBIT3 | bmBIT4;
 	SYNCDELAY;
+	IOD |= bmBIT1;
 	SYNCDELAY;
 	IOD = 0;
 
@@ -287,47 +284,78 @@ void proc_command_r(void)
 
 void proc_command_w(BYTE v)
 {
-	BYTE i, *p = "NOT IMPLEMENTED";
-	for (i = 0; p[i]; i++) {
-		EP1INBUF[i] = p[i]; SYNCDELAY;
+	while ((IOC >> 4) != v) {
+		SYNCDELAY;
 	}
-	EP1INBC = i; SYNCDELAY;
+
+	EP1INBUF[0] = 'O'; SYNCDELAY;
+	EP1INBUF[1] = 'K'; SYNCDELAY;
+	EP1INBUF[2] = ' '; SYNCDELAY;
+	EP1INBUF[3] = '('; SYNCDELAY;
+	EP1INBUF[4] = 'W'; SYNCDELAY;
+	EP1INBUF[5] = nibble2hex(v); SYNCDELAY;
+	EP1INBUF[6] = ')'; SYNCDELAY;
+	EP1INBC = 7; SYNCDELAY;
 }
 
 void proc_command_c(void)
 {
-	BYTE i, *p = "NOT IMPLEMENTED";
-	for (i = 0; p[i]; i++) {
-		EP1INBUF[i] = p[i]; SYNCDELAY;
+	BYTE i, j, buf;
+
+	/* Reset chksum register */
+	PD0 = 1;
+	PD1 = 0;
+	SYNCDELAY;
+	PD1 = 1;
+	SYNCDELAY;
+	PD0 = 0;
+	PD1 = 0;
+
+	for (i = 0; i < 6; i++) {
+		buf = 0;
+		for (j = 0; j < 4; j++) {
+			buf = buf << 1 | PC2;
+			SYNCDELAY;
+			PD1 = 1;
+			SYNCDELAY;
+			PD1 = 0;
+		}
+		EP1INBUF[i] = nibble2hex(buf); SYNCDELAY;
 	}
-	EP1INBC = i; SYNCDELAY;
+
+	EP1INBUF[6] = ' '; SYNCDELAY;
+	EP1INBUF[7] = '('; SYNCDELAY;
+	EP1INBUF[8] = 'C'; SYNCDELAY;
+	EP1INBUF[9] = ')'; SYNCDELAY;
+	EP1INBC = 10; SYNCDELAY;
 }
 
 void proc_command_b(BYTE v)
 {
-	BYTE i, *p = "NOT IMPLEMENTED";
-	for (i = 0; p[i]; i++) {
-		EP1INBUF[i] = p[i]; SYNCDELAY;
-	}
-	EP1INBC = i; SYNCDELAY;
+	PA5 = v;
+
+	EP1INBUF[0] = 'O'; SYNCDELAY;
+	EP1INBUF[1] = 'K'; SYNCDELAY;
+	EP1INBUF[2] = ' '; SYNCDELAY;
+	EP1INBUF[3] = '('; SYNCDELAY;
+	EP1INBUF[4] = 'B'; SYNCDELAY;
+	EP1INBUF[5] = v ? '1' : '0'; SYNCDELAY;
+	EP1INBUF[6] = ')'; SYNCDELAY;
+	EP1INBC = 7; SYNCDELAY;
 }
 
 void proc_command_i(BYTE v)
 {
-	BYTE i, *p = "NOT IMPLEMENTED";
-	for (i = 0; p[i]; i++) {
-		EP1INBUF[i] = p[i]; SYNCDELAY;
-	}
-	EP1INBC = i; SYNCDELAY;
-}
+	PD2 = v;
 
-void proc_command_l(BYTE r, BYTE g)
-{
-	BYTE i, *p = "NOT IMPLEMENTED";
-	for (i = 0; p[i]; i++) {
-		EP1INBUF[i] = p[i]; SYNCDELAY;
-	}
-	EP1INBC = i; SYNCDELAY;
+	EP1INBUF[0] = 'O'; SYNCDELAY;
+	EP1INBUF[1] = 'K'; SYNCDELAY;
+	EP1INBUF[2] = ' '; SYNCDELAY;
+	EP1INBUF[3] = '('; SYNCDELAY;
+	EP1INBUF[4] = 'I'; SYNCDELAY;
+	EP1INBUF[5] = v ? '1' : '0'; SYNCDELAY;
+	EP1INBUF[6] = ')'; SYNCDELAY;
+	EP1INBC = 7; SYNCDELAY;
 }
 
 void proc_command_s(void)
@@ -338,11 +366,12 @@ void proc_command_s(void)
 	EP1INBUF[3] =            PA2 ? '1' : '0'; SYNCDELAY;
 	EP1INBUF[4] =            PC3 ? '1' : '0'; SYNCDELAY;
 	EP1INBUF[5] = (IOE & bmBIT5) ? '1' : '0'; SYNCDELAY;
-	EP1INBUF[6] = ' '; SYNCDELAY;
-	EP1INBUF[7] = '('; SYNCDELAY;
-	EP1INBUF[8] = 'S'; SYNCDELAY;
-	EP1INBUF[9] = ')'; SYNCDELAY;
-	EP1INBC = 10; SYNCDELAY;
+	EP1INBUF[6] = nibble2hex(IOC >> 4); SYNCDELAY;
+	EP1INBUF[7] = ' '; SYNCDELAY;
+	EP1INBUF[8] = '('; SYNCDELAY;
+	EP1INBUF[9] = 'S'; SYNCDELAY;
+	EP1INBUF[10] = ')'; SYNCDELAY;
+	EP1INBC = 11; SYNCDELAY;
 
 	// reset error state
 	state_err = 0;
@@ -437,8 +466,6 @@ void proc_command(void)
 {
 	BYTE len, cmd;
 
-	PA1 = 1;
-
 	/* process command(s) */
 	len = EP1OUTBC;
 	cmd = EP1OUTBUF[0];
@@ -448,15 +475,13 @@ void proc_command(void)
 	else if (cmd == 'R' && len == 1)
 		proc_command_r();
 	else if (cmd == 'W' && len == 2)
-		proc_command_w(EP1OUTBUF[1]);
+		proc_command_w(hex2nibble(EP1OUTBUF[1]));
 	else if (cmd == 'C' && len == 1)
 		proc_command_c();
 	else if (cmd == 'B' && len == 2)
 		proc_command_b(EP1OUTBUF[1] == '1');
 	else if (cmd == 'I' && len == 2)
 		proc_command_i(EP1OUTBUF[1] == '1');
-	else if (cmd == 'L' && len == 3)
-		proc_command_l(EP1OUTBUF[1] == '1', EP1OUTBUF[2] == '1');
 	else if (cmd == 'S' && len == 1)
 		proc_command_s();
 	else if (cmd == 'J')
@@ -474,8 +499,6 @@ void proc_command(void)
 
 	/* accept new data on EP1OUT */
 	EP1OUTBC = 0xff; SYNCDELAY;
-
-	PA1 = 0;
 }
 
 void proc_bulkdata(void)
@@ -528,12 +551,18 @@ void main(void)
 	while (1)
 	{
 		/* check for data on EP1 */
-		if((EP1OUTCS & bmBIT1) == 0)
+		if((EP1OUTCS & bmBIT1) == 0) {
+			PA1 = 1;
 			proc_command();
+			PA1 = 0;
+		}
 
 		/* check for data on EP2 */
-		if((EP2CS & bmBIT2) == 0)
+		if((EP2CS & bmBIT2) == 0) {
+			PA0 = 1;
 			proc_bulkdata();
+			PA0 = 0;
+		}
 	}
 }
 
