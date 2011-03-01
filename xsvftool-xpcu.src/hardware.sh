@@ -77,6 +77,14 @@ cat > hardware.cmd <<- EOT
 	quit
 EOT
 
+cat > erasecpld.cmd <<- EOT
+	setMode -bs
+	setCable -port svf -file "erasecpld.svf"
+	addDevice -p 1 -file "hardware.jed"
+	Erase -p 1 
+	quit
+EOT
+
 set -ex
 
 mkdir -p xilinx/projnav.tmp/
@@ -91,4 +99,6 @@ cpldfit -p xc2c256-7-VQ100 -ofmt verilog -optimize density -htmlrpt -loc on -sle
 hprep6 -i hardware
 
 impact -batch hardware.cmd
+
+impact -batch erasecpld.cmd
 

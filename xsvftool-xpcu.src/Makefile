@@ -41,9 +41,10 @@ all: xsvftool-xpcu
 xsvftool-xpcu: filedata.h hardware_cksum_c.inc $(LIBXSVFDIR)/libxsvf.a xsvftool-xpcu.o fx2usb-interface.o
 	$(CC) $(LDFLAGS) xsvftool-xpcu.o fx2usb-interface.o $(LDLIBS) -o $@
 
-hardware.svf: hardware.sh hardware.ucf hardware.v hardware_cksum_vl.inc
+hardware.svf erasecpld.svf: hardware.sh hardware.ucf hardware.v hardware_cksum_vl.inc
 ifeq ($(USE_PREP_HARDWARE),1)
 	cp prep_hardware.svf hardware.svf
+	cp prep_erasecpld.svf erasecpld.svf
 else
 	bash hardware.sh
 endif
@@ -67,8 +68,9 @@ hardware_cksum_vl.inc hardware_cksum_c.inc: hardware.v
 	echo "'h$$(md5sum hardware.v | cut -c1-6 | tr a-z A-Z)" > hardware_cksum_vl.inc
 	echo "\"$$(md5sum hardware.v | cut -c1-6 | tr a-z A-Z)\"" > hardware_cksum_c.inc
 
-filedata.h: hardware.svf firmware.ihx
+filedata.h: hardware.svf erasecpld.svf firmware.ihx
 	{ echo "unsigned char hardware_svf[] = { " && perl -pe 's/(.)/ord($$1).","/sge' hardware.svf && echo "};" && \
+	echo "unsigned char erasecpld_svf[] = { " && perl -pe 's/(.)/ord($$1).","/sge' erasecpld.svf && echo "};" && \
 	echo "unsigned char firmware_ihx[] = { " && perl -pe 's/(.)/ord($$1).","/sge' firmware.ihx && echo "};"; } | \
 	perl -pe 's/(.{70}.*?,)/$$1\n/g' > filedata.h_new
 	mv filedata.h_new filedata.h
@@ -78,6 +80,7 @@ prep:
 	sed -i '/^USE_PREP_/ s/1/0/;' Makefile
 	make hardware.svf firmware.ihx
 	cp hardware.svf prep_hardware.svf
+	cp erasecpld.svf prep_erasecpld.svf
 	cp firmware.ihx prep_firmware.ihx
 	sed -i '/^USE_PREP_/ s/0/1/;' Makefile
 	make clean
@@ -93,7 +96,8 @@ clean:
 	rm -f hardware.cxt hardware.gyd hardware.jed _impactbatch.log tmperr.err
 	rm -f hardware_cksum_vl.inc hardware_cksum_c.inc gpifprog_fixed.c
 	rm -rf hardware_html xilinx xlnx_auto_0_xdb _xmsgs
-	rm -f filedata.h firmware.ihx xsvftool-xpcu core *.o *.d
+	rm -f filedata.h firmware.ihx erasecpld.cmd erasecpld.svf
+	rm -f xsvftool-xpcu core *.o *.d
 
 -include *.d
 

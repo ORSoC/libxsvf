@@ -457,7 +457,10 @@ static void help()
 	fprintf(stderr, "          Use CPLD on probe as target device\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -p\n");
-	fprintf(stderr, "          Force (re-)programming the CPLD on the probe \n");
+	fprintf(stderr, "          Force (re-)programming the CPLD on the probe\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -E\n");
+	fprintf(stderr, "          Erase the CPLD on the probe\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -s svf-file\n");
 	fprintf(stderr, "          Play the specified SVF file\n");
@@ -480,7 +483,7 @@ int main(int argc, char **argv)
 	int done_initialization = 0;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-xpcu";
-	while ((opt = getopt(argc, argv, "f:APps:x:c")) != -1)
+	while ((opt = getopt(argc, argv, "f:APpEs:x:c")) != -1)
 	{
 		if (!done_initialization && (opt == 'p' || opt == 's' || opt == 'x' || opt == 'c'))
 		{
@@ -495,7 +498,7 @@ int main(int argc, char **argv)
 			CHECK(fx2usb_upload_ihex(fx2usb, ihexf), == 0);
 			CHECK(fclose(ihexf), == 0);
 
-			if (opt != 'p') {
+			if (opt != 'p' && !mode_internal_cpld) {
 				fx2usb_command("C");
 				if (memcmp(correct_cksum, fx2usb_retbuf, 6)) {
 					fprintf(stderr, "Mismatch in CPLD checksum (is=%.6s, should=%s): reprogramming CPLD on probe..\n",
@@ -524,11 +527,17 @@ int main(int argc, char **argv)
 			mode_async_check = 1;
 			break;
 		case 'p':
+		case 'E':
 			gotaction = 1;
 			i = mode_internal_cpld;
 			mode_internal_cpld = 1;
-			file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
-			fprintf(stderr, "(Re-)programming CPLD on the probe..\n");
+			if (opt == 'p') {
+				file_fp = CHECK_PTR(fopen("hardware.svf", "r"), != NULL);
+				fprintf(stderr, "(Re-)programming CPLD on the probe..\n");
+			} else {
+				file_fp = CHECK_PTR(fopen("erasecpld.svf", "r"), != NULL);
+				fprintf(stderr, "Erasing CPLD on the probe..\n");
+			}
 			libxsvf_play(&h, LIBXSVF_MODE_SVF);
 			mode_internal_cpld = i;
 			fclose(file_fp);
