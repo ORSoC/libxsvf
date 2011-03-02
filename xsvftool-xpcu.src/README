@@ -28,3 +28,42 @@ build these. So pre-compiled versions of this firmware images are distributed
 along with the xsvftool-xpcu sourcecode. You need to set the USE_PREP_* config
 options in the Makefile to '0' if you prefer building the firmware yourself.
 
+
+Hardware Tested
+---------------
+
+Currently the only hardware that has been tested is a self-built clone of
+the Xilinx probe, based on the schematics of a Xilinx development board.
+
+It is possible that other probes need small modifications of the code in
+order to work properly.
+
+I plan to make some tests with other hardware soon...
+
+
+Notes on device permissions
+---------------------------
+
+To run xsvftool-xpcu as unprivileged user you need to set the permissions on
+the usb device accordingly. E.g.:
+
+	$ lsusb
+	...
+	Bus 002 Device 021: ID 04b4:8613 Cypress Semiconductor Corp.  CY7C68013 EZ-USB FX2 USB 2.0 Development Kit
+	...
+
+	$ sudo chmod 0666 /dev/bus/usb/002/021
+
+	$ ./xsvftool-xpcu -Pc
+	Scanning JTAG chain..
+	idcode=0x16d4a093, revision=0x1, part=0x6d4a, manufactor=0x049
+	Total number of JTAG clock cycles performed: 79
+	READY.
+
+Instead of doing this manually each time the device is connected one might
+prefer to create a udev rule that does set the permissions automatically:
+
+	$ vi /etc/udev/rules.d/xsvftool-xpcu.rules
+	# Allow everyone access to the Xilinx Platform Cable USB (see 'man 7 udev' for details)
+	ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="8613", MODE:="0666"
+
