@@ -47,10 +47,8 @@ Notes on device permissions
 To run xsvftool-xpcu as unprivileged user you need to set the permissions on
 the usb device accordingly. E.g.:
 
-	$ lsusb
-	...
+	$ lsusb -d 04b4:8613
 	Bus 002 Device 021: ID 04b4:8613 Cypress Semiconductor Corp.  CY7C68013 EZ-USB FX2 USB 2.0 Development Kit
-	...
 
 	$ sudo chmod 0666 /dev/bus/usb/002/021
 

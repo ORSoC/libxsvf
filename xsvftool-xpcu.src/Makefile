@@ -64,9 +64,9 @@ gpifprog_fixed.c: gpifprog.c
 $(LIBXSVFDIR)/libxsvf.a:
 	$(MAKE) -C $(LIBXSVFDIR) libxsvf.a
 
-hardware_cksum_vl.inc hardware_cksum_c.inc: hardware.v
-	echo "'h$$(md5sum hardware.v | cut -c1-6 | tr a-z A-Z)" > hardware_cksum_vl.inc
-	echo "\"$$(md5sum hardware.v | cut -c1-6 | tr a-z A-Z)\"" > hardware_cksum_c.inc
+hardware_cksum_vl.inc hardware_cksum_c.inc: hardware.sh hardware.ucf hardware.v
+	echo "'h$$(cat $^ | md5sum | cut -c1-6 | tr a-z A-Z)" > hardware_cksum_vl.inc
+	echo "\"$$(cat $^ | md5sum | cut -c1-6 | tr a-z A-Z)\"" > hardware_cksum_c.inc
 
 filedata.h: hardware.svf erasecpld.svf firmware.ihx
 	{ echo "unsigned char hardware_svf[] = { " && perl -pe 's/(.)/ord($$1).","/sge' hardware.svf && echo "};" && \

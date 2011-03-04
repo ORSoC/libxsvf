@@ -24,7 +24,7 @@
 #  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 #
 
-. /opt/Xilinx/12.4/ISE_DS/settings32.sh
+. /opt/Xilinx/13.1/ISE_DS/settings32.sh
 
 cat > hardware.prj <<- EOT
         verilog work "hardware.v"
