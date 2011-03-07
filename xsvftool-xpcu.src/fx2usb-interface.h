@@ -30,7 +30,7 @@
 #include <usb.h>
 #include <stdio.h>
 
-usb_dev_handle *fx2usb_open();
+usb_dev_handle *fx2usb_open(int vendor_id, int device_id, char *dev);
 int fx2usb_upload_ihex(usb_dev_handle *dh, FILE *fp);
 int fx2usb_claim(usb_dev_handle *dh);
 void fx2usb_release(usb_dev_handle *dh);

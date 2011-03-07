@@ -26,21 +26,39 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include "fx2usb-interface.h"
 
-usb_dev_handle *fx2usb_open()
+usb_dev_handle *fx2usb_open(int vendor_id, int device_id, char *dev)
 {
 	struct usb_bus *b;
 	struct usb_device *d;
+	char *dd = NULL;
+	int devlen;
+
+	if (dev) {
+		devlen = strlen(dev);
+		dd = devlen > 8 ? &dev[devlen-8] : "|xxx|xxx";
+	}
 
 	for (b = usb_get_busses(); b; b = b->next) {
 		for (d = b->devices; d; d = d->next) {
-			// The Xilinx Platform Cable USB Vendor/Device IDs
-			if ((d->descriptor.idVendor == 0x03FD) && (d->descriptor.idProduct == 0x000D))
-				return usb_open(d);
-			// The plain CY7C68013 dev kit Vendor/Device IDs
-			if ((d->descriptor.idVendor == 0x04b4) && (d->descriptor.idProduct == 0x8613))
-				return usb_open(d);
+			if (dd) {
+				if (dd[0] == '/' && !strncmp(dd+1, b->dirname, 3) &&
+						dd[4] == '/' && !strncmp(dd+5, d->filename, 3))
+					return usb_open(d);
+			} else
+			if (vendor_id || device_id) {
+				if ((d->descriptor.idVendor == vendor_id) && (d->descriptor.idProduct == device_id))
+					return usb_open(d);
+			} else {
+				// The Xilinx Platform Cable USB Vendor/Device IDs
+				if ((d->descriptor.idVendor == 0x03FD) && (d->descriptor.idProduct == 0x000D))
+					return usb_open(d);
+				// The plain CY7C68013 dev kit Vendor/Device IDs
+				if ((d->descriptor.idVendor == 0x04b4) && (d->descriptor.idProduct == 0x8613))
+					return usb_open(d);
+			}
 		}
 	}
 

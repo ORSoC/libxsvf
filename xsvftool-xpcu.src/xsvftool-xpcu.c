@@ -76,7 +76,11 @@ char *correct_cksum =
 
 FILE *file_fp = NULL;
 
-int mode_frequency = 0;
+int usb_vendor_id = 0;
+int usb_device_id = 0;
+char *usb_device_file = NULL;
+
+int mode_frequency = 6000;
 int mode_async_check = 0;
 int mode_internal_cpld = 0;
 int mode_8bit_per_cycle = 0;
@@ -366,6 +370,8 @@ static int xpcu_set_frequency(struct libxsvf_host *h UNUSED, int v)
 
 	if (v < freq)
 		fprintf(stderr, "Requested FREQUENCY %dHz is to low! Using minimum value %dHz instead.\n", v, freq);
+	else if (v-freq > 10)
+		fprintf(stderr, "Requested FREQUENCY is %dHz. Using %dHz (24MHz/%d) instead.\n", v, freq, delay+1);
 
 	char cmd[4];
 	snprintf(cmd, 4, "T%02x", delay);
@@ -444,10 +450,18 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2011  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -f kHz ] [ -A ] [ -P ] { -p | -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "Usage: %s [ -d <vendor>:<device> | -D <device_file> ] [ -f kHz ] [ -A ] [ -P ]\n", progname);
+	fprintf(stderr, "       %*s { -E | -p | -s svf-file | -x xsvf-file | -c } ...\n", strlen(progname), "");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -d <vendor>:<device>\n");
+	fprintf(stderr, "          Open the device with this USB vendor and device ID.\n");
+	fprintf(stderr, "          (default: 03fd:000d and 04b4:8613\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -D <device_file>\n");
+	fprintf(stderr, "          Open this USB device (usually something like /dev/bus/usb/012/345)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -f kHz\n");
-	fprintf(stderr, "          Run probe with the specified frequency (default=24000)\n");
+	fprintf(stderr, "          Run probe with the specified frequency (default=6000, max=24000)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -A\n");
 	fprintf(stderr, "          Use full asynchonous error checking\n");
@@ -483,7 +497,7 @@ int main(int argc, char **argv)
 	int done_initialization = 0;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-xpcu";
-	while ((opt = getopt(argc, argv, "f:APpEs:x:c")) != -1)
+	while ((opt = getopt(argc, argv, "d:D:f:APpEs:x:c")) != -1)
 	{
 		if (!done_initialization && (opt == 'p' || opt == 'E' || opt == 's' || opt == 'x' || opt == 'c'))
 		{
@@ -491,14 +505,18 @@ int main(int argc, char **argv)
 			usb_find_busses();
 			usb_find_devices();
 
-			fx2usb = CHECK_PTR(fx2usb_open(), != NULL);
+			fx2usb = fx2usb_open(usb_vendor_id, usb_device_id, usb_device_file);
+			if (fx2usb == NULL) {
+				fprintf(stderr, "Failed to find or open USB device!\n");
+				exit(1);
+			}
 			CHECK(fx2usb_claim(fx2usb), == 0);
 
 			FILE *ihexf = CHECK_PTR(fmemopen(firmware_ihx, sizeof(firmware_ihx), "r"), != NULL);
 			CHECK(fx2usb_upload_ihex(fx2usb, ihexf), == 0);
 			CHECK(fclose(ihexf), == 0);
 
-			if (opt != 'p' && !mode_internal_cpld) {
+			if (opt != 'p' && opt != 'E' && !mode_internal_cpld) {
 				fx2usb_command("C");
 				if (memcmp(correct_cksum, fx2usb_retbuf, 6)) {
 					fprintf(stderr, "Mismatch in CPLD checksum (is=%.6s, should=%s): reprogramming CPLD on probe..\n",
@@ -517,6 +535,17 @@ int main(int argc, char **argv)
 
 		switch (opt)
 		{
+		case 'd':
+			if (usb_vendor_id || usb_device_id || usb_device_file || fx2usb)
+				help();
+			if (sscanf(optarg, "%x:%x", &usb_vendor_id, &usb_device_id) != 2)
+				help();
+			break;
+		case 'D':
+			if (usb_vendor_id || usb_device_id || usb_device_file || fx2usb)
+				help();
+			usb_device_file = strdup(optarg);
+			break;
 		case 'f':
 			mode_frequency = atoi(optarg);
 			break;

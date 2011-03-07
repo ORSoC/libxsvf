@@ -9,9 +9,8 @@ It is based on the libxsvf library:
 http://www.clifford.at/libxsvf/
 
 This tool replaces the original CPLD firmware from Xilinx when run
-on one of the probes. However: The Xilinx tools (i.e. impact) programs
-the CPLD again with the Xilinx firmware whenever needed. So there is
-not problem with that.
+on one of the probes. See the notes below on how to restore the xilinx
+firmware on the CPLD.
 
 The file 'firmware.c' also contains a brief description of the pin mappings
 between the the Cypress CY7C68013A-100AIX and the Xilinx XC2C256-7VQ100
@@ -64,4 +63,38 @@ prefer to create a udev rule that does set the permissions automatically:
 	$ vi /etc/udev/rules.d/xsvftool-xpcu.rules
 	# Allow everyone access to the Xilinx Platform Cable USB (see 'man 7 udev' for details)
 	ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="8613", MODE:="0666"
+
+
+Restore Xilinx CPLD Firmware
+----------------------------
+
+Up to ISE 11 the Xilinx "impact" program did automatically reprogram the CPLD on
+the probe whenever needed. Since ISE 12 this does only work when there is already
+an (older) Xilinx firmware on the probe. So in order to reprogram the CPLD on
+the probe you need ISE 11 installed. Then it is prossible to reprogram the CPLD
+just by loading the fx2 firmware and running impact on the probe:
+
+	$ lsusb -d 04b4:8613
+	Bus 002 Device 021: ID 04b4:8613 Cypress Semiconductor Corp.  CY7C68013 EZ-USB FX2 USB 2.0 Development Kit
+
+	$ sudo ./xsvftool-xpcu -E
+
+	$ sudo fxload -t fx2 -D /dev/bus/usb/002/021 -I /opt/Xilinx/11.3/ISE/bin/lin/xusb_emb.hex
+
+	$ lsusb -d 03fd:0008
+	Bus 002 Device 022: ID 03fd:0008 Xilinx, Inc. 
+
+	$ sudo chmod 666 /dev/bus/usb/002/022
+
+	$ vi impatch_batch.cmd
+	setMode -bs
+	setCable -port usb21
+	identify	
+
+	$ /opt/Xilinx/11.3/ISE/bin/lin/impact -batch impatch_batch.cmd
+
+The "reset-probe.sh" shell script in this directory (libxsvf/xsvftool-xpcu.src/)
+does this automatically:
+
+	$ sudo bash reset-probe.sh
 
