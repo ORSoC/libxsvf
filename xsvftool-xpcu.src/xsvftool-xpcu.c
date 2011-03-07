@@ -181,7 +181,19 @@ static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs, int tms, long
 	struct timeval tv1, tv2;
 	long rem_usecs;
 
-	if (!mode_internal_cpld)
+	if (mode_internal_cpld)
+	{
+		if (!mode_8bit_per_cycle)
+			shrink_8bit_to_4bit();
+		unsigned char tempbuf[64];
+		tempbuf[0] = 'J';
+		memcpy(tempbuf+1, commandbuf, commandbuf_len);
+		fx2usb_send_chunk(fx2usb, 1, tempbuf, commandbuf_len + 1);
+
+		fx2usb_command("P");
+		commandbuf_len = 0;
+	}
+	else
 	{
 		sync_count = 0x08 | ((sync_count+1) & 0x0f);
 		commandbuf[commandbuf_len++] = 0x01;
@@ -203,15 +215,19 @@ static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs, int tms, long
 		num_tck--;
 	}
 
-	while (usecs > 0) {
-		gettimeofday(&tv2, NULL);
-		rem_usecs = usecs - ((tv2.tv_sec - tv1.tv_sec)*1000000 + (tv2.tv_usec - tv1.tv_usec));
-		if (rem_usecs <= 0)
-			break;
-		usleep(rem_usecs);
-	}
+	if (mode_internal_cpld)
+	{
+		if (!mode_8bit_per_cycle)
+			shrink_8bit_to_4bit();
+		unsigned char tempbuf[64];
+		tempbuf[0] = 'J';
+		memcpy(tempbuf+1, commandbuf, commandbuf_len);
+		fx2usb_send_chunk(fx2usb, 1, tempbuf, commandbuf_len + 1);
 
-	if (!mode_internal_cpld)
+		fx2usb_command("P");
+		commandbuf_len = 0;
+	}
+	else
 	{
 		sync_count = 0x08 | ((sync_count+1) & 0x0f);
 		commandbuf[commandbuf_len++] = 0x01;
@@ -224,6 +240,14 @@ static void xpcu_udelay(struct libxsvf_host *h UNUSED, long usecs, int tms, long
 		char cmd[3];
 		snprintf(cmd, 3, "W%x", sync_count);
 		fx2usb_command(cmd);
+	}
+
+	while (usecs > 0) {
+		gettimeofday(&tv2, NULL);
+		rem_usecs = usecs - ((tv2.tv_sec - tv1.tv_sec)*1000000 + (tv2.tv_usec - tv1.tv_usec));
+		if (rem_usecs <= 0)
+			break;
+		usleep(rem_usecs);
 	}
 }
 

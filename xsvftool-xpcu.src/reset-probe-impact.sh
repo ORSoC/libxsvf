@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Reset probe to Xilinx Firmware using 'impact'
+# (see README file for details)
+#
 
 ISEDIR="/opt/Xilinx/11.3/ISE"
 
