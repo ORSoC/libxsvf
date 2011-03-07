@@ -1,7 +1,6 @@
 #!/bin/bash
 
-ISE11DIR="/opt/Xilinx/11.3/ISE"
-. "$ISE11DIR"/settings32.sh
+ISEDIR="/opt/Xilinx/11.3/ISE"
 
 dev2dev() {
 	lsusb -d "$1" | sed -r 's,^Bus ([0-9]+) Device ([0-9]+).*,/dev/bus/usb/\1/\2,'
@@ -18,12 +17,11 @@ trap 'rm "$batchfile"' 0
 cat << EOT > "$batchfile"
 setMode -bs
 setCable -port usb21
-identify
+# identify
+quit
 EOT
 
-# v ./xsvftool-xpcu -E
-
-v fxload -t fx2 -D $( dev2dev 04b4:8613; ) -I "$ISE11DIR"/bin/lin/xusb_emb.hex
+v fxload -t fx2 -D $( dev2dev 04b4:8613; ) -I "$ISEDIR"/bin/lin/xusb_emb.hex
 
 for x in 0 1 2 3 4 5 6 7; do
 	lsusb -d "03fd:0008" && break
@@ -31,5 +29,8 @@ for x in 0 1 2 3 4 5 6 7; do
 	sleep 1
 done
 
-v impact -batch "$batchfile"
+echo -n "Waiting for probe to settle.."
+for x in 1 2 3 4 5; do echo -n .; sleep 1; done; echo
+
+v strace -o x -f "$ISEDIR"/bin/lin/impact -batch "$batchfile"
 

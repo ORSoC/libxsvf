@@ -137,6 +137,18 @@
 // set to '1' on CPLD JTAG error
 BYTE state_err;
 
+void sleep3us()
+{
+	SYNCDELAY;
+	SYNCDELAY;
+	SYNCDELAY;
+	SYNCDELAY;
+	SYNCDELAY;
+	SYNCDELAY;
+	SYNCDELAY;
+	SYNCDELAY;
+}
+
 void setup(void)
 {
 	BYTE i;
@@ -198,8 +210,10 @@ void setup(void)
 	/* Set TAP to logic reset state */
 	for (i=0; i<16; i++) {
 		// TMS is high - just generate a few TCK pulses
-		IOE &= ~bmBIT3; SYNCDELAY;
-		IOE |= bmBIT3; SYNCDELAY;
+		sleep3us();
+		IOE &= ~bmBIT3;
+		sleep3us();
+		IOE |= bmBIT3;
 	}
 
 	/* All set up: Let the host find out about the new EP config */
@@ -260,8 +274,10 @@ void proc_command_r(void)
 	IOE = bmBIT3|bmBIT4|bmBIT6;
 	for (i=0; i<16; i++) {
 		// TMS is high - just generate a few TCK pulses
-		IOE &= ~bmBIT3; SYNCDELAY;
-		IOE |= bmBIT3; SYNCDELAY;
+		sleep3us();
+		IOE &= ~bmBIT3;
+		sleep3us();
+		IOE |= bmBIT3;
 	}
 
 	/* Reset speed to max. */
@@ -479,7 +495,7 @@ void proc_command_j_exec(BYTE cmd)
 		/* generate tck pulse */
 		SYNCDELAY;
 		IOE &= ~bmBIT3;
-		SYNCDELAY;
+		sleep3us();
 		IOE |= bmBIT3;
 		SYNCDELAY;
 	
@@ -504,7 +520,7 @@ void proc_command_j_exec(BYTE cmd)
 		/* generate tck pulse */
 		SYNCDELAY;
 		IOE &= ~bmBIT3;
-		SYNCDELAY;
+		sleep3us();
 		IOE |= bmBIT3;
 		SYNCDELAY;
 	

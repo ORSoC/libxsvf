@@ -65,8 +65,8 @@ prefer to create a udev rule that does set the permissions automatically:
 	ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", ATTR{idProduct}=="8613", MODE:="0666"
 
 
-Restore Xilinx CPLD Firmware
-----------------------------
+Restore Xilinx CPLD Firmware with "impact"
+------------------------------------------
 
 Up to ISE 11 the Xilinx "impact" program did automatically reprogram the CPLD on
 the probe whenever needed. Since ISE 12 this does only work when there is already
@@ -77,10 +77,9 @@ just by loading the fx2 firmware and running impact on the probe:
 	$ lsusb -d 04b4:8613
 	Bus 002 Device 021: ID 04b4:8613 Cypress Semiconductor Corp.  CY7C68013 EZ-USB FX2 USB 2.0 Development Kit
 
-	$ sudo ./xsvftool-xpcu -E
-
 	$ sudo fxload -t fx2 -D /dev/bus/usb/002/021 -I /opt/Xilinx/11.3/ISE/bin/lin/xusb_emb.hex
 
+	### usually you need to wait a few seconds here for the device to re-enumerate and settle ###
 	$ lsusb -d 03fd:0008
 	Bus 002 Device 022: ID 03fd:0008 Xilinx, Inc. 
 
@@ -89,7 +88,7 @@ just by loading the fx2 firmware and running impact on the probe:
 	$ vi impatch_batch.cmd
 	setMode -bs
 	setCable -port usb21
-	identify	
+	quit
 
 	$ /opt/Xilinx/11.3/ISE/bin/lin/impact -batch impatch_batch.cmd
 
@@ -97,4 +96,9 @@ The "reset-probe.sh" shell script in this directory (libxsvf/xsvftool-xpcu.src/)
 does this automatically:
 
 	$ sudo bash reset-probe.sh
+
+WARNING: For some reason this procedure fails when the probe has been used with
+xsvftool-xpcu between beeing connected to USB and loading xusb_emb.hex into the
+FX2. So disconnect and reconnect the probe before running the reset-probe.sh
+script!
 
