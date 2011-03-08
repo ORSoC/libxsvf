@@ -53,7 +53,11 @@ usb_dev_handle *fx2usb_open(int vendor_id, int device_id, char *dev)
 					return usb_open(d);
 			} else {
 				// The Xilinx Platform Cable USB Vendor/Device IDs
+				if ((d->descriptor.idVendor == 0x03FD) && (d->descriptor.idProduct == 0x0009))
+					return usb_open(d);
 				if ((d->descriptor.idVendor == 0x03FD) && (d->descriptor.idProduct == 0x000D))
+					return usb_open(d);
+				if ((d->descriptor.idVendor == 0x03FD) && (d->descriptor.idProduct == 0x000F))
 					return usb_open(d);
 				// The plain CY7C68013 dev kit Vendor/Device IDs
 				if ((d->descriptor.idVendor == 0x04b4) && (d->descriptor.idProduct == 0x8613))

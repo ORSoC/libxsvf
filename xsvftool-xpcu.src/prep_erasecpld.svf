@@ -1,5 +1,4 @@
 // Created using Xilinx Cse Software [ISE - 13.1]
-// Date: Fri Mar  4 07:15:42 2011
 
 TRST OFF;
 ENDIR IDLE;

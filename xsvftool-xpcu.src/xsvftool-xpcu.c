@@ -84,8 +84,10 @@ int mode_frequency = 6000;
 int mode_async_check = 0;
 int mode_internal_cpld = 0;
 int mode_8bit_per_cycle = 0;
+int mode_hex_rmask = 0;
 
 usb_dev_handle *fx2usb;
+int internal_jtag_scan_test = 0;
 
 int sync_count;
 int tck_cycle_count;
@@ -94,6 +96,9 @@ int blocks_without_sync;
 int tdo_check_period_100;
 int tdo_check_thisperiod;
 
+int rmask_bits = 0, rmask_bytes = 0;
+unsigned char *rmask_data = NULL;
+
 /* This constant are used to determine when the error status should be synced.
  * Syncinc to often would slow things down, syncinc not often enough might cause
  * errors beeing reported by far to late.
@@ -101,6 +106,10 @@ int tdo_check_thisperiod;
 #define FORCE_SYNC_AFTER_N_BLOCKS 100
 #define FORCE_SYNC_MIN_PERIOD   10000
 #define FORCE_SYNC_INIT_PERIOD 100000
+
+// send larger junks to USB stack and let the kernel split it up
+// #define MAXBUF() (mode_internal_cpld ? 50 : mode_8bit_per_cycle ? 500 : 1000)
+#define MAXBUF() (mode_internal_cpld ? 50 : 4000)
 
 unsigned char fx2usb_retbuf[65];
 int fx2usb_retlen;
@@ -256,9 +265,8 @@ static int xpcu_getbyte(struct libxsvf_host *h UNUSED)
 	return fgetc(file_fp);
 }
 
-static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int tdo, int rmask UNUSED, int sync)
+static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int tdo, int rmask, int sync)
 {
-	int max_commandbuf = mode_internal_cpld ? 50 : mode_8bit_per_cycle ? 1000 : 2000;
 	int dummy_sync = 0;
 
 	tck_cycle_count++;
@@ -275,9 +283,12 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 	{
 		if (!sync && tdo >= 0 && (blocks_without_sync > FORCE_SYNC_AFTER_N_BLOCKS || tdo_check_period_100 > FORCE_SYNC_MIN_PERIOD))
 			sync = 1;
-		if (!sync && !mode_internal_cpld && blocks_without_sync > 10*FORCE_SYNC_AFTER_N_BLOCKS && commandbuf_len >= (max_commandbuf - 10))
+		if (!sync && !mode_internal_cpld && blocks_without_sync > 10*FORCE_SYNC_AFTER_N_BLOCKS && commandbuf_len >= (MAXBUF() - 10))
 			dummy_sync = 1;
 	}
+
+	if (rmask && !sync)
+		dummy_sync = 1;
 
 	if ((dummy_sync || sync) && !mode_internal_cpld) {
 		sync_count = 0x08 | ((sync_count+1) & 0x0f);
@@ -285,7 +296,7 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 		commandbuf[commandbuf_len++] = sync_count;
 	}
 
-	if (commandbuf_len >= (max_commandbuf - 4) || sync || dummy_sync) {
+	if (commandbuf_len >= (MAXBUF() - 4) || sync || dummy_sync) {
 		if (!mode_8bit_per_cycle)
 			shrink_8bit_to_4bit();
 		if (mode_internal_cpld) {
@@ -309,9 +320,6 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 	if (sync) {
 		fx2usb_command("S");
 		blocks_without_sync = 0;
-		if (fx2usb_retbuf[mode_internal_cpld ? 1 : 0] == '1')
-			return -1;
-		return fx2usb_retbuf[mode_internal_cpld ? 5 : 4] == '1';
 	}
 
 	if (dummy_sync) {
@@ -319,6 +327,23 @@ static int xpcu_pulse_tck(struct libxsvf_host *h UNUSED, int tms, int tdi, int t
 		blocks_without_sync = 0;
 	}
 
+	if (rmask) {
+		if (rmask_bits >= 8*rmask_bytes) {
+			int old_rmask_bytes = rmask_bytes;
+			rmask_bytes = rmask_bytes ? rmask_bytes*2 : 64;
+			rmask_data = realloc(rmask_data, rmask_bytes);
+			memset(rmask_data + old_rmask_bytes, 0, rmask_bytes-old_rmask_bytes);
+		}
+		if (fx2usb_retbuf[mode_internal_cpld ? 5 : 4] == '1')
+			rmask_data[rmask_bits/8] |= 1 << (rmask_bits%8);
+		rmask_bits++;
+	}
+
+	if (sync) {
+		if (fx2usb_retbuf[mode_internal_cpld ? 1 : 0] == '1')
+			return -1;
+		return fx2usb_retbuf[mode_internal_cpld ? 5 : 4] == '1';
+	}
 	return tdo < 0 ? 1 : tdo;
 }
 
@@ -428,8 +453,16 @@ static void xpcu_report_tapstate(struct libxsvf_host *h UNUSED)
 
 static void xpcu_report_device(struct libxsvf_host *h UNUSED, unsigned long idcode)
 {
-	printf("idcode=0x%08lx, revision=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode,
-			(idcode >> 28) & 0xf, (idcode >> 12) & 0xffff, (idcode >> 1) & 0x7ff);
+	if (internal_jtag_scan_test != 0) {
+		// CPLD should be: idcode=0x16d4a093, revision=0x1, part=0x6d4a, manufactor=0x049
+		if (((idcode >> 12) & 0xffff) == 0x6d4a && ((idcode >> 1) & 0x7ff) == 0x049)
+			internal_jtag_scan_test += 1;
+		else
+			internal_jtag_scan_test += 2;
+	} else {
+		printf("idcode=0x%08lx, revision=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode,
+				(idcode >> 28) & 0xf, (idcode >> 12) & 0xffff, (idcode >> 1) & 0x7ff);
+	}
 }
 
 static void xpcu_report_status(struct libxsvf_host *h UNUSED, const char *message UNUSED)
@@ -474,8 +507,11 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2011  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -d <vendor>:<device> | -D <device_file> ] [ -f kHz ] [ -A ] [ -P ]\n", progname);
+	fprintf(stderr, "Usage: %s [ -L | -B ] [ -d <vendor>:<device> | -D <device_file> ] [ -f kHz ] [ -A ] [ -P ]\n", progname);
 	fprintf(stderr, "       %*s { -E | -p | -s svf-file | -x xsvf-file | -c } ...\n", strlen(progname), "");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -L, -B\n");
+	fprintf(stderr, "          Print RMASK bits as hex value (little or big endian)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -d <vendor>:<device>\n");
 	fprintf(stderr, "          Open the device with this USB vendor and device ID.\n");
@@ -516,12 +552,12 @@ int main(int argc, char **argv)
 {
 	int rc = 0;
 	int gotaction = 0;
-	int opt, i;
+	int opt, i, j;
 
 	int done_initialization = 0;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-xpcu";
-	while ((opt = getopt(argc, argv, "d:D:f:APpEs:x:c")) != -1)
+	while ((opt = getopt(argc, argv, "LBd:D:f:APpEs:x:c")) != -1)
 	{
 		if (!done_initialization && (opt == 'p' || opt == 'E' || opt == 's' || opt == 'x' || opt == 'c'))
 		{
@@ -539,6 +575,22 @@ int main(int argc, char **argv)
 			FILE *ihexf = CHECK_PTR(fmemopen(firmware_ihx, sizeof(firmware_ihx), "r"), != NULL);
 			CHECK(fx2usb_upload_ihex(fx2usb, ihexf), == 0);
 			CHECK(fclose(ihexf), == 0);
+
+			i = mode_internal_cpld;
+			mode_internal_cpld = 1;
+			internal_jtag_scan_test = 1;
+			libxsvf_play(&h, LIBXSVF_MODE_SCAN);
+
+			if (internal_jtag_scan_test != 2) {
+				fprintf(stderr, "Probe (device %s on bus %s) failed internal JTAG scan test!\n",
+					usb_device(fx2usb)->bus->dirname, usb_device(fx2usb)->filename);
+				exit(1);
+			}
+			mode_internal_cpld = i;
+			internal_jtag_scan_test = 0;
+
+			fprintf(stderr, "Connected to probe (device %s on bus %s) and passed internal JTAG scan test.\n",
+				usb_device(fx2usb)->bus->dirname, usb_device(fx2usb)->filename);
 
 			if (opt != 'p' && opt != 'E' && !mode_internal_cpld) {
 				fx2usb_command("C");
@@ -559,6 +611,12 @@ int main(int argc, char **argv)
 
 		switch (opt)
 		{
+		case 'L':
+			mode_hex_rmask = 1;
+			break;
+		case 'B':
+			mode_hex_rmask = 2;
+			break;
 		case 'd':
 			if (usb_vendor_id || usb_device_id || usb_device_file || fx2usb)
 				help();
@@ -632,7 +690,27 @@ int main(int argc, char **argv)
 	if (!gotaction)
 		help();
 
+	if (rmask_bits > 0) {
+		fprintf(stderr, "Total number of rmask bits acquired: %d\n", rmask_bits);
+		if (mode_hex_rmask) {
+			printf("0x");
+			for (i = 0; i < rmask_bits; i += 4) {
+				int val = 0;
+				for (j = i; j < i + 4; j++) {
+					int pos = mode_hex_rmask > 1 ? j : rmask_bits - j - 1;
+					val = (val << 1) | (rmask_data[pos/8] & (1 << (pos%8)) ? 1 : 0);
+				}
+				printf("%x", val);
+			}
+		} else {
+			for (i = 0; i < rmask_bits; i++)
+				putchar((rmask_data[i / 8] & (1 << (i % 8))) != 0 ? '1' : '0');
+		}
+		putchar('\n');
+	}
+
 	if (done_initialization) {
+		fx2usb_command("X");
 		fx2usb_release(fx2usb);
 		usb_close(fx2usb);
 	}

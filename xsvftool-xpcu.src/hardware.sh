@@ -99,6 +99,8 @@ cpldfit -p xc2c256-7-VQ100 -ofmt verilog -optimize density -htmlrpt -loc on -sle
 hprep6 -i hardware
 
 impact -batch hardware.cmd
+sed -i '\,^// Date:, d;' hardware.svf
 
 impact -batch erasecpld.cmd
+sed -i '\,^// Date:, d;' erasecpld.svf
 

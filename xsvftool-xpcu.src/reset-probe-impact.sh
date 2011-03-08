@@ -6,8 +6,9 @@
 
 ISEDIR="/opt/Xilinx/11.3/ISE"
 
-dev2dev() {
-	lsusb -d "$1" | sed -r 's,^Bus ([0-9]+) Device ([0-9]+).*,/dev/bus/usb/\1/\2,'
+finddev() {
+	for id in 03fd:0009 03fd:000d 03fd:000f 04b4:8613; do lsusb -d $id; done | \
+		head -n 1 | sed -r 's,^Bus ([0-9]+) Device ([0-9]+).*,/dev/bus/usb/\1/\2,'
 }
 
 v() {
@@ -25,7 +26,7 @@ setCable -port usb21
 quit
 EOT
 
-v fxload -t fx2 -D $( dev2dev 04b4:8613; ) -I "$ISEDIR"/bin/lin/xusb_emb.hex
+v fxload -t fx2 -D $(finddev) -I "$ISEDIR"/bin/lin/xusb_emb.hex
 
 for x in 0 1 2 3 4 5 6 7; do
 	lsusb -d "03fd:0008" && break
@@ -36,5 +37,5 @@ done
 echo -n "Waiting for probe to settle.."
 for x in 1 2 3 4 5; do echo -n .; sleep 1; done; echo
 
-v strace -o x -f "$ISEDIR"/bin/lin/impact -batch "$batchfile"
+v "$ISEDIR"/bin/lin/impact -batch "$batchfile"
 

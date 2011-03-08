@@ -66,6 +66,10 @@
  *  Response: -- NONE --
  *    Execute JTAG transaction (4bit/cycle)
  *
+ *  Request: X
+ *  Response: OK (X)
+ *    Exit. Restore FX2 default settings and enter endless loop
+ *
  *
  *  Target JTAG Programming (EP2)
  *  -----------------------------
@@ -120,6 +124,7 @@
  *  PA0       --->   LED_GREEN
  *  PA1       --->   LED_RED
  *  PA2       <---   SLOE_INT
+ *  PA3       --->   CPLD_PWR
  *  PA5       --->   BUFFER_OE
  *
  *  IOE[3]    --->   CPLD TCK
@@ -137,7 +142,10 @@
 // set to '1' on CPLD JTAG error
 BYTE state_err;
 
-void sleep3us()
+// use quad buffering and larger buffers
+// #define ALL_RESOURCES_ON_EP2
+
+void sleep3us(void)
 {
 	SYNCDELAY;
 	SYNCDELAY;
@@ -149,6 +157,15 @@ void sleep3us()
 	SYNCDELAY;
 }
 
+void msleep(WORD ms)
+{
+	WORD i;
+	while (ms-- > 0) {
+		for (i = 0; i < 1000; i += 3)
+			sleep3us();
+	}
+}
+
 void setup(void)
 {
 	BYTE i;
@@ -156,11 +173,19 @@ void setup(void)
 	/* CPU: 48MHz, don't drive CLKOUT */
 	CPUCS = 0x10;
 
+#ifdef ALL_RESOURCES_ON_EP2
 	/* Configure the Endpoints (EP2 => 4x 1kB) */
 	EP2CFG = 0xA8; // VALID=1, DIR=0, TYPE=10, SIZE=1, BUF=00
 	EP4CFG = 0x00; // VALID=0, DIR=0, TYPE=00, SIZE=0, BUF=00
 	EP6CFG = 0x00; // VALID=0, DIR=0, TYPE=00, SIZE=0, BUF=00
 	EP8CFG = 0x00; // VALID=0, DIR=0, TYPE=00, SIZE=0, BUF=00
+#else
+	/* Configure the Endpoints (default config) */
+	EP2CFG = 0xA2; // VALID=1, DIR=0, TYPE=10, SIZE=0, BUF=10
+	EP4CFG = 0xA0; // VALID=1, DIR=0, TYPE=10, SIZE=0, BUF=00
+	EP6CFG = 0xA2; // VALID=1, DIR=1, TYPE=10, SIZE=0, BUF=10
+	EP8CFG = 0xA0; // VALID=1, DIR=1, TYPE=10, SIZE=0, BUF=00
+#endif
 
 	/* USB FIFO */
 	FIFORESET = 0x80;
@@ -191,7 +216,7 @@ void setup(void)
 
 	/* Misc signals on port A */
 	PORTACFG = 0;
-	OEA = bmBIT0 | bmBIT1 | bmBIT5;
+	OEA = bmBIT0 | bmBIT1 | bmBIT3 | bmBIT5;
 	IOA = 0;
 
 	/* FX2 <-> CPLD signals on port C */
@@ -202,6 +227,10 @@ void setup(void)
 	/* FX2 <-> CPLD signals on port D */
 	OED = bmBIT0 | bmBIT1 | bmBIT2 | bmBIT3 | bmBIT4;
 	IOD = 0;
+
+	/* TURN ON CPLD VCC */
+	PA3 = 1;
+	msleep(100);
 
 	/* XC2S256 JTAG on port E */
 	OEE = bmBIT3|bmBIT4|bmBIT6;
@@ -219,11 +248,98 @@ void setup(void)
 	/* All set up: Let the host find out about the new EP config */
 #if 0
 	USBCS |= bmDISCON;
-	for (i=0; i<100; i++) {
-		SYNCDELAY;
-	}
+	msleep(10);
 	USBCS &= ~bmDISCON;
 #endif
+}
+
+void unsetup(void)
+{
+	WORD i, j;
+
+	/* 1st TURN OFF CPLD VCC */
+	PA3 = 0;
+	msleep(100);
+
+	/*
+	 * Restore default configuration as good as possible
+	 *
+	 * The idea is that one could load the xilinx firmware without
+	 * the need to reconnect. Unfortunately it doesn't work. Something
+	 * important is still different between the FX2 after reset and
+	 * after running this unsetup() function.
+	 */
+
+	GPIFABORT = 0xFF;
+	SYNCDELAY;
+
+	CPUCS = 0x02;
+	SYNCDELAY;
+	IFCONFIG = 0x80;
+	SYNCDELAY;
+
+	EP2CFG = 0xA2;
+	SYNCDELAY;
+	EP4CFG = 0xA0;
+	SYNCDELAY;
+	EP6CFG = 0xA2;
+	SYNCDELAY;
+	EP8CFG = 0xA0;
+	SYNCDELAY;
+
+	EP2FIFOCFG = 0x05;
+	SYNCDELAY;
+	EP4FIFOCFG = 0x05;
+	SYNCDELAY;
+	EP6FIFOCFG = 0x05;
+	SYNCDELAY;
+	EP8FIFOCFG = 0x05;
+	SYNCDELAY;
+
+	FIFORESET = 0x80;
+	SYNCDELAY;
+	FIFORESET = 2;
+	SYNCDELAY;
+	FIFORESET = 4;
+	SYNCDELAY;
+	FIFORESET = 6;
+	SYNCDELAY;
+	FIFORESET = 8;
+	SYNCDELAY;
+	FIFORESET = 0;
+	SYNCDELAY;
+
+	IOA = 0;
+	IOC = 0;
+	IOD = 0;
+	IOE = 0;
+
+	OEA = 0;
+	OEC = 0;
+	OED = 0;
+	OEE = 0;
+
+	PORTACFG = 0;
+	PORTCCFG = 0;
+
+	OEA = 1;
+	for (i=0; i<3; i++) {
+		PA0 = 1;
+		for (j=0; j<3000; j++) sleep3us();
+		PA1 = 0;
+		for (j=0; j<3000; j++) sleep3us();
+	}
+	OEA = 0;
+
+	// just ack everything and wait
+	while (1) {
+		if((EP1OUTCS & bmBIT1) == 0) {
+			EP1OUTBC = 0xff; SYNCDELAY;
+		}
+		if((EP2CS & bmBIT2) == 0) {
+			EP2BCL = 0xff; SYNCDELAY;
+		}
+	}
 }
 
 BYTE nibble2hex(BYTE v)
@@ -287,7 +403,7 @@ void proc_command_r(void)
 	state_err = 0;
 
 	/* Reset LEDs and BUFFER_OE */
-	IOA = 0;
+	PA0 = PA1 = PA5 = 0;
 
 	/* Assert CPLD reset pins */
 	IOD = bmBIT0 | bmBIT3 | bmBIT4;
@@ -543,6 +659,22 @@ void proc_command_j(BYTE len)
 	}
 }
 
+void proc_command_x(void)
+{
+	EP1INBUF[0] = 'O'; SYNCDELAY;
+	EP1INBUF[1] = 'K'; SYNCDELAY;
+	EP1INBUF[2] = ' '; SYNCDELAY;
+	EP1INBUF[3] = '('; SYNCDELAY;
+	EP1INBUF[4] = 'X'; SYNCDELAY;
+	EP1INBUF[5] = ')'; SYNCDELAY;
+	EP1INBC = 6; SYNCDELAY;
+
+	/* accept new data on EP1OUT */
+	EP1OUTBC = 0xff; SYNCDELAY;
+
+	unsetup();
+}
+
 void proc_command(void)
 {
 	BYTE len, cmd;
@@ -569,6 +701,8 @@ void proc_command(void)
 		proc_command_p();
 	else if (cmd == 'J')
 		proc_command_j(len);
+	else if (cmd == 'X')
+		proc_command_x();
 	else
 	{
 		/* send error response */
@@ -629,8 +763,10 @@ void main(void)
 	/* accept data on EP2 */
 	EP2BCL = 0xff; SYNCDELAY; // 1st buffer
 	EP2BCL = 0xff; SYNCDELAY; // 2nd buffer
+#ifdef ALL_RESOURCES_ON_EP2
 	EP2BCL = 0xff; SYNCDELAY; // 3rd buffer
 	EP2BCL = 0xff; SYNCDELAY; // 4th buffer
+#endif
 
 	while (1)
 	{
