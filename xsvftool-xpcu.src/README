@@ -89,7 +89,7 @@ The Xilinx ISE comes with XSVF files for programming the CPLD with the Xilinx
 firmware. You can simply use "xsvftool-xpcu" to program the CPLD to the original
 firmware:
 
-	$ ./xsvftool-xpcu -P -x /data/software/Xilinx13.1/ISE_DS/ISE/data/xusb_emb.fmwr
+	$ ./xsvftool-xpcu -P -x /opt/Xilinx/13.1/ISE_DS/ISE/data/xusb_emb.fmwr
 
 After that you need to disconnect and reconnect the probe before you can load
 the Xilinx FX2 firmware and use the probe with impact:
@@ -97,14 +97,14 @@ the Xilinx FX2 firmware and use the probe with impact:
 	$ lsusb -d 04b4:8613
 	Bus 001 Device 106: ID 04b4:8613 Cypress Semiconductor Corp. CY7C68013 EZ-USB FX2 USB 2.0 Development Kit
 
-	$ fxload -t fx2 -D /dev/bus/usb/001/106 -I /data/software/Xilinx13.1/ISE_DS/ISE/bin/lin/xusb_emb.hex
+	$ fxload -t fx2 -D /dev/bus/usb/001/106 -I /opt/Xilinx/13.1/ISE_DS/ISE/bin/lin/xusb_emb.hex
 
 	### usually you need to wait a few seconds here for the device to re-enumerate and settle ###
 	$ lsusb -d 03fd:0008
 	Bus 001 Device 108: ID 03fd:0008 Xilinx, Inc. 
 
 	### just scan the JTAG chain to test the probe ###
-	$ sudo /data/software/Xilinx13.1/ISE_DS/ISE/bin/lin/impact -batch /dev/null
+	$ sudo /opt/Xilinx/13.1/ISE_DS/ISE/bin/lin/impact -batch /dev/null
 	> setMode -bs
 	> setCable -port usb21
 	> identify
