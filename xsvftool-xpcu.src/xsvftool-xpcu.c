@@ -583,14 +583,14 @@ int main(int argc, char **argv)
 
 			if (internal_jtag_scan_test != 2) {
 				fprintf(stderr, "Probe (device %s on bus %s) failed internal JTAG scan test!\n",
-					usb_device(fx2usb)->bus->dirname, usb_device(fx2usb)->filename);
+					usb_device(fx2usb)->filename, usb_device(fx2usb)->bus->dirname);
 				exit(1);
 			}
 			mode_internal_cpld = i;
 			internal_jtag_scan_test = 0;
 
 			fprintf(stderr, "Connected to probe (device %s on bus %s) and passed internal JTAG scan test.\n",
-				usb_device(fx2usb)->bus->dirname, usb_device(fx2usb)->filename);
+				usb_device(fx2usb)->filename, usb_device(fx2usb)->bus->dirname);
 
 			if (opt != 'p' && opt != 'E' && !mode_internal_cpld) {
 				fx2usb_command("C");

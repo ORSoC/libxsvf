@@ -143,7 +143,7 @@
 BYTE state_err;
 
 // use quad buffering and larger buffers
-// #define ALL_RESOURCES_ON_EP2
+#define ALL_RESOURCES_ON_EP2
 
 void sleep3us(void)
 {
