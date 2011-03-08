@@ -28,7 +28,27 @@ along with the xsvftool-xpcu source code. You need to set the USE_PREP_* config
 options in the Makefile to '0' if you prefer building the firmware yourself.
 
 
-Supported and Unsupported hardware
+xsvftool-xpcu vs. Xilinx USB cable driver
+-----------------------------------------
+
+When installed, the Xilinx "USB cable driver" tries to load its own FX2 firmware
+to the probes as soon as the probe is connected to the system. Once the Xilinx
+firmware is loaded into the probe the probe can't be accessed using xsvftool-xpcu.
+
+So in order to use xsvftool-xpcu with a probe you need to uninstall or disable
+the Xilinx driver. This can usually be done by commenting out the udev rules in
+the /etc/udev/rules.d/xusbdfwu.rules file.
+
+A probe that shows up as 03fd:0008 in the lsusb output is running the Xilinx
+firmware. You won't be able to access this probe with xsvftool-xpcu unless you
+deactivate the Xilinx driver as explained above, disconnect the probe from the
+PC and reconnect it.
+
+You can always load the Xilinx FX2 firmware in the probe manually without using
+the udev rules (see "fxload" examples below).
+
+
+Supported and unsupported hardware
 ----------------------------------
 
 This software has been tested using the following probes:
@@ -46,7 +66,7 @@ Per default the software recognizes the following USB vendor IDs and device IDs
 	04b4:8613	Cypress FX2 without configuration PROM
 
 Currently there is no support for the "Xilinx Platform Cable USB II" in this
-software. I don't have access to such a probe at the moment.
+software.
 
 
 Notes on device permissions
