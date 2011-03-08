@@ -1,6 +1,6 @@
 
-xsvftool-xpcu - An (X)SVF player for the Xilinx Platform Cable USB II
-=====================================================================
+xsvftool-xpcu - An (X)SVF player for the Xilinx Platform Cable USB
+==================================================================
 
 This program can be used to play SVF and XSVF files on the "Xilinx
 Platform Cable USB" family of JTAG probes.
