@@ -508,7 +508,7 @@ static void help()
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the BSD license.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage: %s [ -L | -B ] [ -d <vendor>:<device> | -D <device_file> ] [ -f kHz ] [ -A ] [ -P ]\n", progname);
-	fprintf(stderr, "       %*s { -E | -p | -s svf-file | -x xsvf-file | -c } ...\n", strlen(progname), "");
+	fprintf(stderr, "       %*s { -E | -p | -s svf-file | -x xsvf-file | -c } ...\n", (int)strlen(progname), "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -L, -B\n");
 	fprintf(stderr, "          Print RMASK bits as hex value (little or big endian)\n");
