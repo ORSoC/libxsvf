@@ -104,7 +104,7 @@ the Xilinx FX2 firmware and use the probe with impact:
 	Bus 001 Device 108: ID 03fd:0008 Xilinx, Inc. 
 
 	### just scan the JTAG chain to test the probe ###
-	$ sudo /opt/Xilinx/13.1/ISE_DS/ISE/bin/lin/impact -batch /dev/null
+	$ /opt/Xilinx/13.1/ISE_DS/ISE/bin/lin/impact -batch /dev/null
 	> setMode -bs
 	> setCable -port usb21
 	> identify
