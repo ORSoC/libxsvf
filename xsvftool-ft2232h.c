@@ -485,7 +485,7 @@ found_device:;
 	};
 	unsigned char amontec_init_commands[] = {
 		0x86, 0x02, 0x00, // initial clk freq (2 MHz)
-		0x80, 0x18, 0x1b, // initial line states
+		0x80, 0x08, 0x1b, // initial line states
 		0x85, // disable loopback
 	};
 	unsigned char *init_commands_p = plain_init_commands;

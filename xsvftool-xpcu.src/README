@@ -89,7 +89,7 @@ the USB device accordingly. E.g.:
 Instead of doing this manually each time the device is connected one might
 prefer to create a udev rule that does set the permissions automatically:
 
-	$ vi /etc/udev/rules.d/xsvftool-xpcu.rules
+	$ sudo vi /etc/udev/rules.d/xsvftool-xpcu.rules
 	# Allow everyone access to the Xilinx Platform Cable USB (see 'man 7 udev' for details)
 	ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="03fd", ATTR{idProduct}=="0008", MODE:="0666"
 	ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="03fd", ATTR{idProduct}=="0009", MODE:="0666"
