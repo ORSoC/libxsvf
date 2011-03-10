@@ -43,11 +43,14 @@ help:
 	@echo "  $(MAKE) xsvftool-xpcu"
 	@echo "                .... build the library and xsvftool-xpcu"
 	@echo ""
+	@echo "  $(MAKE) xsvftool-bp"
+	@echo "                .... build the library and xsvftool-bp"
+	@echo ""
 	@echo "  $(MAKE) all"
 	@echo "                .... build the library and all examples"
 	@echo ""
 
-all: libxsvf.a xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu
+all: libxsvf.a xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
 
 libxsvf.a: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o
 	rm -f libxsvf.a
@@ -66,9 +69,11 @@ xsvftool-xpcu: libxsvf.a xsvftool-xpcu.src/*.c xsvftool-xpcu.src/*.h \
 	$(MAKE) -C xsvftool-xpcu.src
 	cp xsvftool-xpcu.src/xsvftool-xpcu xsvftool-xpcu
 
+xsvftool-bp: libxsvf.a xsvftool-bp.o
+
 clean:
 	$(MAKE) -C xsvftool-xpcu.src clean
-	rm -f xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu
+	rm -f xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
 	rm -f libxsvf.a *.o *.d
 
 -include *.d
