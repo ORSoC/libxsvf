@@ -26,9 +26,9 @@
 
 #define _GNU_SOURCE
 
-#define DEBUG_SEROUT
-#define DEBUG_SERIN
-#define DEBUG_WAITFOR
+// #define DEBUG_SEROUT
+// #define DEBUG_SERIN
+// #define DEBUG_WAITFOR
 
 #include "libxsvf.h"
 
@@ -48,7 +48,69 @@ struct udata_s {
 	int serial_fd;
 	char buffer[256];
 	int index1, index2;
+	int current_mode;
+	int tapstate;
 };
+
+void update_tapstate(struct libxsvf_host *h, int tms)
+{
+	struct udata_s *u = h->user_data;
+	switch (u->tapstate)
+	{
+	case LIBXSVF_TAP_RESET:
+		u->tapstate = tms ? LIBXSVF_TAP_RESET : LIBXSVF_TAP_IDLE;
+		break;
+	case LIBXSVF_TAP_IDLE:
+		u->tapstate = tms ? LIBXSVF_TAP_DRSELECT : LIBXSVF_TAP_IDLE;
+		break;
+	case LIBXSVF_TAP_DRSELECT:
+		u->tapstate = tms ? LIBXSVF_TAP_IRSELECT : LIBXSVF_TAP_DRCAPTURE;
+		break;
+	case LIBXSVF_TAP_DRCAPTURE:
+		u->tapstate = tms ? LIBXSVF_TAP_DREXIT1 : LIBXSVF_TAP_DRSHIFT;
+		break;
+	case LIBXSVF_TAP_DRSHIFT:
+		u->tapstate = tms ? LIBXSVF_TAP_DREXIT1 : LIBXSVF_TAP_DRSHIFT;
+		break;
+	case LIBXSVF_TAP_DREXIT1:
+		u->tapstate = tms ? LIBXSVF_TAP_DRUPDATE : LIBXSVF_TAP_DRPAUSE;
+		break;
+	case LIBXSVF_TAP_DRPAUSE:
+		u->tapstate = tms ? LIBXSVF_TAP_DREXIT2 : LIBXSVF_TAP_DRPAUSE;
+		break;
+	case LIBXSVF_TAP_DREXIT2:
+		u->tapstate = tms ? LIBXSVF_TAP_DRUPDATE : LIBXSVF_TAP_DRSHIFT;
+		break;
+	case LIBXSVF_TAP_DRUPDATE:
+		u->tapstate = tms ? LIBXSVF_TAP_DRSELECT : LIBXSVF_TAP_IDLE;
+		break;
+	case LIBXSVF_TAP_IRSELECT:
+		u->tapstate = tms ? LIBXSVF_TAP_RESET : LIBXSVF_TAP_IRCAPTURE;
+		break;
+	case LIBXSVF_TAP_IRCAPTURE:
+		u->tapstate = tms ? LIBXSVF_TAP_IREXIT1 : LIBXSVF_TAP_IRSHIFT;
+		break;
+	case LIBXSVF_TAP_IRSHIFT:
+		u->tapstate = tms ? LIBXSVF_TAP_IREXIT1 : LIBXSVF_TAP_IRSHIFT;
+		break;
+	case LIBXSVF_TAP_IREXIT1:
+		u->tapstate = tms ? LIBXSVF_TAP_IRUPDATE : LIBXSVF_TAP_IRPAUSE;
+		break;
+	case LIBXSVF_TAP_IRPAUSE:
+		u->tapstate = tms ? LIBXSVF_TAP_IREXIT2 : LIBXSVF_TAP_IRPAUSE;
+		break;
+	case LIBXSVF_TAP_IREXIT2:
+		u->tapstate = tms ? LIBXSVF_TAP_IRUPDATE : LIBXSVF_TAP_IRSHIFT;
+		break;
+	case LIBXSVF_TAP_IRUPDATE:
+		u->tapstate = tms ? LIBXSVF_TAP_DRSELECT : LIBXSVF_TAP_IDLE;
+		break;
+	default:
+		fprintf(stderr, "Confusion in tapstate tracking -> assuming RESET state!\n");
+		u->tapstate = LIBXSVF_TAP_RESET;
+		break;
+	}
+}
 
 int ser_recv(struct libxsvf_host *h, int block)
 {
@@ -92,11 +154,11 @@ int ser_recv(struct libxsvf_host *h, int block)
 void ser_send(struct libxsvf_host *h, const char *data, int len)
 {
 	struct udata_s *u = h->user_data;
-	const char *p = data;
 	int rc;
 
 #ifdef DEBUG_SEROUT
 	fprintf(stderr, "ser out> ");
+	const char *p = data;
 	while (*p) {
 		if (*p == '\n')
 			fprintf(stderr, "\\n");
@@ -121,8 +183,6 @@ void ser_send(struct libxsvf_host *h, const char *data, int len)
 		data += rc;
 		len -= rc;
 	}
-
-	ser_recv(h, 0);
 }
 
 void ser_printf(struct libxsvf_host *h, const char *fmt, ...)
@@ -149,10 +209,9 @@ int ser_waitfor(struct libxsvf_host *h, const char *token)
 {
 	struct udata_s *u = h->user_data;
 	int token_len = strlen(token);
-	int lastidx = -1;
+	int lastidx = -1, idx = u->index1;
 
 	while (1) {
-		int idx = ser_recv(h, 1);
 		while (idx != lastidx && (idx & 0x7f) >= token_len) {
 			if (!memcmp(u->buffer + idx - token_len, token, token_len)) {
 #ifdef DEBUG_WAITFOR
@@ -163,6 +222,8 @@ int ser_waitfor(struct libxsvf_host *h, const char *token)
 			idx--;
 		}
 		lastidx = idx;
+
+		idx = ser_recv(h, 1);
 	}
 }
 
@@ -210,7 +271,11 @@ static int h_setup(struct libxsvf_host *h)
 	ser_command(h, "JTAG>", "p\n");
 	ser_command(h, ">", "2\n");
 
+	ser_command(h, "JTAG>", "]\n");
 	ser_waitfor(h, "JTAG>");
+
+	u->tapstate = LIBXSVF_TAP_IDLE;
+	u->current_mode = 0;
 
 	return 0;
 }
@@ -234,7 +299,59 @@ static int h_getbyte(struct libxsvf_host *h)
 
 static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync)
 {
-	// struct udata_s *u = h->user_data;
+	struct udata_s *u = h->user_data;
+	char cmd[64];
+	int cmd_idx = 0;
+	int rc = 0;
+	int idx;
+
+	if (u->current_mode == '[' && u->tapstate != LIBXSVF_TAP_IRSHIFT) {
+		cmd[cmd_idx++] = ']';
+		u->current_mode = 0;
+	}
+
+	if (u->current_mode == '{' && u->tapstate != LIBXSVF_TAP_DRSHIFT) {
+		cmd[cmd_idx++] = '}';
+		u->current_mode = 0;
+	}
+
+	if (u->tapstate == LIBXSVF_TAP_DRSHIFT && u->current_mode != '{')
+	{
+		cmd[cmd_idx++] = '{';
+		u->current_mode = '{';
+	}
+
+	if (u->tapstate == LIBXSVF_TAP_IRSHIFT && u->current_mode != '[')
+	{
+		cmd[cmd_idx++] = '[';
+		u->current_mode ='[';
+	}
+
+	if (tdi >= 0) {
+		if (u->tapstate != LIBXSVF_TAP_DRSHIFT && u->tapstate != LIBXSVF_TAP_IRSHIFT)
+			fprintf(stderr, "Shifting TDI in non-DRSHIFT, non-IRSHIFT state %d.\n", u->tapstate);
+		cmd[cmd_idx++] = tdi ? '-' : '_';
+		cmd[cmd_idx++] = '^';
+	}
+
+	if (tdo >= 0 || sync) {
+		if (u->tapstate != LIBXSVF_TAP_DRSHIFT && u->tapstate != LIBXSVF_TAP_IRSHIFT)
+			fprintf(stderr, "Sampling TDO in non-DRSHIFT, non-IRSHIFT state %d.\n", u->tapstate);
+		cmd[cmd_idx++] = '.';
+	}
+
+	if (cmd_idx > 0) {
+		cmd[cmd_idx++] = 0;
+		ser_command(h, "JTAG>", "%s\n", cmd);
+	}
+
+	if (tdo >= 0 || sync) {
+		idx = ser_waitfor(h, "DATA INPUT, STATE: ");
+		rc = u->buffer[idx] == '1' ? 1 : 0;
+	}
+
+	update_tapstate(h, tms);
+
 	return 1;
 }
 
