@@ -49,8 +49,16 @@ help:
 	@echo "  $(MAKE) all"
 	@echo "                .... build the library and all examples"
 	@echo ""
+	@echo "  $(MAKE) install"
+	@echo "                .... install everything in /usr/local/"
+	@echo ""
 
 all: libxsvf.a xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
+
+install: all
+	install -Dt /usr/local/bin/ xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
+	install -Dt /usr/local/include/ -m 644 libxsvf.h
+	install -Dt /usr/local/lib/ -m 644 libxsvf.a
 
 libxsvf.a: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o
 	rm -f libxsvf.a
