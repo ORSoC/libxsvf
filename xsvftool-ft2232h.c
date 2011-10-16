@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <ftdi.h>
+#include <math.h>
 #ifdef BACKGROUND_READ
 #  include <pthread.h>
 #endif
@@ -605,7 +606,19 @@ static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rm
 
 static int h_set_frequency(struct libxsvf_host *h, int v)
 {
-	fprintf(stderr, "WARNING: Setting JTAG clock frequency to %d ignored!\n", v);
+	struct udata_s *u = h->user_data;
+	unsigned char setfreq_command[] = { 0x86, 0x02, 0x00 };
+	int div = fmax(ceil(12e6 / (2*v) - 1), 2);
+	setfreq_command[1] = div >> 0;
+	setfreq_command[2] = div >> 8;
+#ifdef ASYNC_WRITE
+	if (ftdi_write_data_async(&u->ftdic, setfreq_command, sizeof(setfreq_command)) != sizeof(setfreq_command)) {
+#else
+	if (ftdi_write_data(&u->ftdic, setfreq_command, sizeof(setfreq_command)) != sizeof(setfreq_command)) {
+#endif
+		fprintf(stderr, "IO Error: Set frequency write failed!\n");
+		u->error_rc = -1;
+	}
 	return 0;
 }
 

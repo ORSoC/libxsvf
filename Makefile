@@ -67,7 +67,7 @@ libxsvf.a: tap.o statename.o memname.o svf.o xsvf.o scan.o play.o
 
 xsvftool-gpio: libxsvf.a xsvftool-gpio.o
 
-xsvftool-ft2232h: LDLIBS+=-lftdi
+xsvftool-ft2232h: LDLIBS+=-lftdi -lm
 xsvftool-ft2232h: LDFLAGS+=-pthread
 xsvftool-ft2232h.o: CFLAGS+=-pthread
 xsvftool-ft2232h: libxsvf.a xsvftool-ft2232h.o
