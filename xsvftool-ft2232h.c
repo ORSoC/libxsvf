@@ -88,6 +88,7 @@ struct udata_s {
 	int retval_i;
 	int retval[256];
 	int error_rc;
+	int verbose;
 #ifdef BACKGROUND_READ
 #  ifdef INTERLACED_READ_WRITE
 	int total_job_bits;
@@ -101,6 +102,19 @@ struct udata_s {
 	pthread_t read_thread;
 #endif
 };
+
+static FILE *dumpfile = NULL;
+
+static void write_dumpfile(int wr, unsigned char *buf, int size)
+{
+	int i;
+	if (!dumpfile)
+		return;
+	fprintf(dumpfile, "%s %04x:", wr ? "SEND" : "RECV", size);
+	for (i = 0; i < size; i++)
+		fprintf(dumpfile, " %02x", buf[i]);
+	fprintf(dumpfile, "\n");
+}
 
 static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int size)
 {
@@ -121,6 +135,7 @@ static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int 
 		}
 		pos += rc;
 	}
+	write_dumpfile(0, buf, pos);
 	return pos;
 }
 
@@ -177,6 +192,7 @@ static void transfer_tms(struct udata_s *u, struct buffer_s *d, int tdi, int len
 
 	new_read_job(u, 1, len, d, &transfer_tms_job_handler);
 
+	write_dumpfile(1, data_command, sizeof(data_command));
 #ifdef ASYNC_WRITE
 	if (ftdi_write_data_async(&u->ftdic, data_command, sizeof(data_command)) != sizeof(data_command)) {
 #else
@@ -256,6 +272,7 @@ static void transfer_tdi(struct udata_s *u, struct buffer_s *d, int len)
 
 	new_read_job(u, data_len, len, d, &transfer_tdi_job_handler);
 
+	write_dumpfile(1, command, command_len);
 #ifdef ASYNC_WRITE
 	if (ftdi_write_data_async(&u->ftdic, command, command_len) != command_len) {
 #else
@@ -497,6 +514,7 @@ found_device:;
 		init_commands_sz = sizeof(amontec_init_commands);
 	}
 
+	write_dumpfile(1, init_commands_p, init_commands_sz);
 	if (ftdi_write_data(&u->ftdic, init_commands_p, init_commands_sz) != init_commands_sz) {
 		fprintf(stderr, "IO Error: Interface setup failed (init commands).\n");
 		ftdi_disable_bitbang(&u->ftdic);
@@ -611,6 +629,7 @@ static int h_set_frequency(struct libxsvf_host *h, int v)
 	int div = fmax(ceil(12e6 / (2*v) - 1), 2);
 	setfreq_command[1] = div >> 0;
 	setfreq_command[2] = div >> 8;
+	write_dumpfile(1, setfreq_command, sizeof(setfreq_command));
 #ifdef ASYNC_WRITE
 	if (ftdi_write_data_async(&u->ftdic, setfreq_command, sizeof(setfreq_command)) != sizeof(setfreq_command)) {
 #else
@@ -622,10 +641,24 @@ static int h_set_frequency(struct libxsvf_host *h, int v)
 	return 0;
 }
 
+static void h_report_tapstate(struct libxsvf_host *h)
+{
+	struct udata_s *u = h->user_data;
+	if (u->verbose >= 2)
+		printf("[%s]\n", libxsvf_state2str(h->tap_state));
+}
+
 static void h_report_device(struct libxsvf_host *h, unsigned long idcode)
 {
 	printf("idcode=0x%08lx, revision=0x%01lx, part=0x%04lx, manufactor=0x%03lx\n", idcode,
 			(idcode >> 28) & 0xf, (idcode >> 12) & 0xffff, (idcode >> 1) & 0x7ff);
+}
+
+static void h_report_status(struct libxsvf_host *h, const char *message)
+{
+	struct udata_s *u = h->user_data;
+	if (u->verbose >= 1)
+		printf("[STATUS] %s\n", message);
 }
 
 static void h_report_error(struct libxsvf_host *h, const char *file, int line, const char *message)
@@ -649,7 +682,9 @@ static struct libxsvf_host h = {
 	.sync = h_sync,
 	.pulse_tck = h_pulse_tck,
 	.set_frequency = h_set_frequency,
+	.report_tapstate = h_report_tapstate,
 	.report_device = h_report_device,
+	.report_status = h_report_status,
 	.report_error = h_report_error,
 	.realloc = h_realloc,
 	.user_data = &u
@@ -668,7 +703,13 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -r funcname ] [ -L | -B ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -v\n");
+	fprintf(stderr, "          Enable verbose output (repeat for incrased verbosity)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -d dumpfile\n");
+	fprintf(stderr, "          Write a logfile of all MPSSE comunication\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -L, -B\n");
 	fprintf(stderr, "          Print RMASK bits as hex value (little or big endian)\n");
@@ -690,16 +731,25 @@ int main(int argc, char **argv)
 	int rc = 0;
 	int gotaction = 0;
 	int hex_mode = 0;
-	const char *realloc_name = NULL;
 	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-ft2232h";
-	while ((opt = getopt(argc, argv, "r:vLBx:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "vd:LBx:s:c")) != -1)
 	{
 		switch (opt)
 		{
-		case 'r':
-			realloc_name = optarg;
+		case 'v':
+			u.verbose++;
+			break;
+		case 'd':
+			if (!strcmp(optarg, "-"))
+				dumpfile = stdout;
+			else
+				dumpfile = fopen(optarg, "w");
+			if (!dumpfile) {
+				fprintf(stderr, "Can't open dumpfile `%s': %s\n", optarg, strerror(errno));
+				rc = 1;
+			}
 			break;
 		case 'x':
 		case 's':
