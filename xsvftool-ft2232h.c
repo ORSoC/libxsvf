@@ -708,7 +708,7 @@ static void help()
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -f freq[k|M] ] \\\n", progname);
-	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", strlen(progname)+1, "");
+	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -v\n");
 	fprintf(stderr, "          Enable verbose output (repeat for incrased verbosity)\n");
