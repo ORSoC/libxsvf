@@ -89,6 +89,7 @@ struct udata_s {
 	int retval[256];
 	int error_rc;
 	int verbose;
+	int frequency;
 #ifdef BACKGROUND_READ
 #  ifdef INTERLACED_READ_WRITE
 	int total_job_bits;
@@ -523,6 +524,9 @@ found_device:;
 		return -1;
 	}
 
+	if (u->frequency > 0)
+		h->set_frequency(h, u->frequency);
+
 	u->job_fifo_out = NULL;
 	u->job_fifo_in = NULL;
 	u->last_tms = -1;
@@ -703,7 +707,8 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] { -s svf-file | -x xsvf-file | -c } ...\n", progname);
+	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -f freq[k|M] ] \\\n", progname);
+	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", strlen(progname)+1, "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -v\n");
 	fprintf(stderr, "          Enable verbose output (repeat for incrased verbosity)\n");
@@ -713,6 +718,9 @@ static void help()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -L, -B\n");
 	fprintf(stderr, "          Print RMASK bits as hex value (little or big endian)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -f freq[k|M]\n");
+	fprintf(stderr, "          Set maximum frequency in Hz, kHz or MHz\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -s svf-file\n");
 	fprintf(stderr, "          Play the specified SVF file\n");
@@ -734,7 +742,7 @@ int main(int argc, char **argv)
 	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-ft2232h";
-	while ((opt = getopt(argc, argv, "vd:LBx:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "vd:LBf:x:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -749,6 +757,26 @@ int main(int argc, char **argv)
 			if (!dumpfile) {
 				fprintf(stderr, "Can't open dumpfile `%s': %s\n", optarg, strerror(errno));
 				rc = 1;
+			}
+			break;
+		case 'f':
+			u.frequency = strtol(optarg, &optarg, 10);
+			while (*optarg != 0) {
+				if (*optarg == 'k') {
+					u.frequency *= 1000;
+					optarg++;
+					continue;
+				}
+				if (*optarg == 'M') {
+					u.frequency *= 1000000;
+					optarg++;
+					continue;
+				}
+				if (optarg[0] == 'H' && optarg[1] == 'z') {
+					optarg += 2;
+					continue;
+				}
+				help();
 			}
 			break;
 		case 'x':
@@ -772,10 +800,14 @@ int main(int argc, char **argv)
 			break;
 		case 'c':
 			gotaction = 1;
+			int old_frequency = u.frequency;
+			if (u.frequency == 0)
+				u.frequency = 10000;
 			if (libxsvf_play(&h, LIBXSVF_MODE_SCAN) < 0) {
 				fprintf(stderr, "Error while scanning JTAG chain.\n");
 				rc = 1;
 			}
+			u.frequency = old_frequency;
 			break;
 		case 'L':
 			hex_mode = 1;
