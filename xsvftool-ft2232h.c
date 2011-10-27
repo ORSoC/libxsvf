@@ -89,6 +89,7 @@ struct udata_s {
 	int retval[256];
 	int error_rc;
 	int verbose;
+	int syncmode;
 	int frequency;
 #ifdef BACKGROUND_READ
 #  ifdef INTERLACED_READ_WRITE
@@ -616,6 +617,8 @@ static int h_sync(struct libxsvf_host *h)
 static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rmask, int sync)
 {
 	struct udata_s *u = h->user_data;
+	if (u->syncmode)
+		sync = 1;
 	buffer_add(u, tms, tdi, tdo, rmask);
 	if (sync) {
 		buffer_sync(u);
@@ -629,6 +632,8 @@ static int h_pulse_tck(struct libxsvf_host *h, int tms, int tdi, int tdo, int rm
 static int h_set_frequency(struct libxsvf_host *h, int v)
 {
 	struct udata_s *u = h->user_data;
+	if (u->syncmode && v > 10000)
+		v = 10000;
 	unsigned char setfreq_command[] = { 0x86, 0x02, 0x00 };
 	int div = fmax(ceil(12e6 / (2*v) - 1), 2);
 	setfreq_command[1] = div >> 0;
@@ -707,7 +712,7 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -f freq[k|M] ] \\\n", progname);
+	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -S ] [ -f freq[k|M] ] \\\n", progname);
 	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -v\n");
@@ -718,6 +723,9 @@ static void help()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -L, -B\n");
 	fprintf(stderr, "          Print RMASK bits as hex value (little or big endian)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -S\n");
+	fprintf(stderr, "          Run in synchronous mode (slow but report errors right away)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -f freq[k|M]\n");
 	fprintf(stderr, "          Set maximum frequency in Hz, kHz or MHz\n");
@@ -742,7 +750,7 @@ int main(int argc, char **argv)
 	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-ft2232h";
-	while ((opt = getopt(argc, argv, "vd:LBf:x:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "vd:LBSf:x:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -814,6 +822,11 @@ int main(int argc, char **argv)
 			break;
 		case 'B':
 			hex_mode = 2;
+			break;
+		case 'S':
+			if (u.frequency == 0)
+				u.frequency = 10000;
+			u.syncmode = 1;
 			break;
 		default:
 			help();
