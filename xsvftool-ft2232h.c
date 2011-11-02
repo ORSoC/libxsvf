@@ -124,9 +124,11 @@ static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int 
 	int pos = 0;
 	int poll_count = 0;
 	while (pos < size) {
-		int rc = ftdi_read_data(ftdi, buf+pos, size);
-		if (rc < 0)
+		int rc = ftdi_read_data(ftdi, buf+pos, size-pos);
+		if (rc < 0) {
+			fprintf(stderr, "[***] ftdi_read_data returned error `%s' (rc=%d).\n", ftdi_get_error_string(ftdi), rc);
 			break;
+		}
 		// this check should only be needed for very low JTAG clock frequencies
 		if (rc == 0) {
 			if (++poll_count > 8) {
