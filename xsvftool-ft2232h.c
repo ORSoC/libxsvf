@@ -66,6 +66,7 @@ struct read_job_s {
 	int data_len, bits_len;
 	struct buffer_s *buffer;
 	job_handler_t *handler;
+	unsigned int command_id;
 };
 
 struct buffer_s {
@@ -107,18 +108,18 @@ struct udata_s {
 
 static FILE *dumpfile = NULL;
 
-static void write_dumpfile(int wr, unsigned char *buf, int size)
+static void write_dumpfile(int wr, unsigned char *buf, int size, unsigned int command_id)
 {
 	int i;
 	if (!dumpfile)
 		return;
-	fprintf(dumpfile, "%s %04x:", wr ? "SEND" : "RECV", size);
+	fprintf(dumpfile, "%s[%u] %04x:", wr ? "SEND" : "RECV", command_id, size);
 	for (i = 0; i < size; i++)
 		fprintf(dumpfile, " %02x", buf[i]);
 	fprintf(dumpfile, "\n");
 }
 
-static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int size)
+static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int size, unsigned int command_id)
 {
 	int pos = 0;
 	int poll_count = 0;
@@ -129,7 +130,7 @@ static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int 
 		// this check should only be needed for very low JTAG clock frequencies
 		if (rc == 0) {
 			if (++poll_count > 8) {
-				fprintf(stderr, "[***] my_ftdi_read_data gives up polling.\n");
+				fprintf(stderr, "[***] my_ftdi_read_data gives up polling <id=%u, pos=%u, size=%u>.\n", command_id, pos, size);
 				break;
 			}
 			// fprintf(stderr, "[%d/8] my_ftdi_read_data with len=%d polling at %d..\n", poll_count, size, pos);
@@ -137,19 +138,21 @@ static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int 
 		}
 		pos += rc;
 	}
-	write_dumpfile(0, buf, pos);
+	write_dumpfile(0, buf, pos, command_id);
 	return pos;
 }
 
 static struct read_job_s *new_read_job(struct udata_s *u, int data_len, int bits_len, struct buffer_s *buffer, job_handler_t *handler)
 {
 	struct read_job_s *job = calloc(1, sizeof(struct read_job_s));
+	static unsigned int command_count = 0;
 
 	job->data_len = data_len;
 	job->bits_len = bits_len;
 	job->buffer = calloc(bits_len, sizeof(struct buffer_s));
 	memcpy(job->buffer, buffer, bits_len*sizeof(struct buffer_s));
 	job->handler = handler;
+	job->command_id = command_count++;
 
 	if (u->job_fifo_in)
 		u->job_fifo_in->next = job;
@@ -170,7 +173,9 @@ static void transfer_tms_job_handler(struct udata_s *u, struct read_job_s *job, 
 {
 	int i;
 	for (i=0; i<job->bits_len; i++) {
-		int line_tdo = (*data & (1 << (7-i))) != 0 ? 1 : 0;
+		// seams like output is align to the MSB in the byte and is LSB first
+		int bitpos = i + (8 - job->bits_len);
+		int line_tdo = (*data & (1 << bitpos)) != 0 ? 1 : 0;
 		if (job->buffer[i].tdo_enable && job->buffer[i].tdo != line_tdo)
 			u->error_rc = -1;
 		if (job->buffer[i].rmask && u->retval_i < 256)
@@ -192,9 +197,9 @@ static void transfer_tms(struct udata_s *u, struct buffer_s *d, int tdi, int len
 	data_command[2] |= d[len-1].tms << len;
 	u->last_tms = d[len-1].tms;
 
-	new_read_job(u, 1, len, d, &transfer_tms_job_handler);
+	struct read_job_s *rj = new_read_job(u, 1, len, d, &transfer_tms_job_handler);
 
-	write_dumpfile(1, data_command, sizeof(data_command));
+	write_dumpfile(1, data_command, sizeof(data_command), rj->command_id);
 #ifdef ASYNC_WRITE
 	if (ftdi_write_data_async(&u->ftdic, data_command, sizeof(data_command)) != sizeof(data_command)) {
 #else
@@ -211,21 +216,21 @@ static void transfer_tdi_job_handler(struct udata_s *u, struct read_job_s *job, 
 	int bytes = job->bits_len / 8;
 	int bits = job->bits_len % 8;
 
-	i = 0;
-	for (j=0; j<bytes; j++, i++) {
-		for (k=0; k<8; k++) {
-			int line_tdo = (data[i] & (1 << k)) != 0 ? 1 : 0;
-			if (job->buffer[j*8+k].tdo_enable && job->buffer[j*8+k].tdo != line_tdo)
+	for (i=0, j=0; j<bytes; j++) {
+		for (k=0; k<8; k++, i++) {
+			int line_tdo = (data[j] & (1 << k)) != 0 ? 1 : 0;
+			if (job->buffer[i].tdo_enable && job->buffer[i].tdo != line_tdo)
 				u->error_rc = -1;
 			if (job->buffer[j*8+k].rmask && u->retval_i < 256)
 				u->retval[u->retval_i++] = line_tdo;
 		}
 	}
 	for (j=0; j<bits; j++, i++) {
-		int line_tdo = (data[bytes] & (1 << (j+8-bits))) != 0 ? 1 : 0;
-		if (job->buffer[bytes*8+j].tdo_enable && job->buffer[bytes*8+j].tdo != line_tdo)
+		int bitpos = j + (8 - bits);
+		int line_tdo = (data[bytes] & (1 << bitpos)) != 0 ? 1 : 0;
+		if (job->buffer[i].tdo_enable && job->buffer[i].tdo != line_tdo)
 			u->error_rc = -1;
-		if (job->buffer[bytes*8+j].rmask && u->retval_i < 256)
+		if (job->buffer[i].rmask && u->retval_i < 256)
 			u->retval[u->retval_i++] = line_tdo;
 		u->last_tdo = line_tdo;
 	}
@@ -272,9 +277,9 @@ static void transfer_tdi(struct udata_s *u, struct buffer_s *d, int len)
 	command[i] = 0x87;
 	assert(i+1 == command_len);
 
-	new_read_job(u, data_len, len, d, &transfer_tdi_job_handler);
+	struct read_job_s *rj = new_read_job(u, data_len, len, d, &transfer_tdi_job_handler);
 
-	write_dumpfile(1, command, command_len);
+	write_dumpfile(1, command, command_len, rj->command_id);
 #ifdef ASYNC_WRITE
 	if (ftdi_write_data_async(&u->ftdic, command, command_len) != command_len) {
 #else
@@ -301,7 +306,7 @@ static void process_next_read_job(struct udata_s *u)
 		u->job_fifo_in = NULL;
 	
 	unsigned char data[job->data_len];
-	if (my_ftdi_read_data(&u->ftdic, data, job->data_len) != job->data_len) {
+	if (my_ftdi_read_data(&u->ftdic, data, job->data_len, job->command_id) != job->data_len) {
 		fprintf(stderr, "IO Error: FTDI/USB read failed!\n");
 		u->error_rc = -1;
 	} else {
@@ -516,7 +521,7 @@ found_device:;
 		init_commands_sz = sizeof(amontec_init_commands);
 	}
 
-	write_dumpfile(1, init_commands_p, init_commands_sz);
+	write_dumpfile(1, init_commands_p, init_commands_sz, 0);
 	if (ftdi_write_data(&u->ftdic, init_commands_p, init_commands_sz) != init_commands_sz) {
 		fprintf(stderr, "IO Error: Interface setup failed (init commands).\n");
 		ftdi_disable_bitbang(&u->ftdic);
@@ -638,7 +643,7 @@ static int h_set_frequency(struct libxsvf_host *h, int v)
 	int div = fmax(ceil(12e6 / (2*v) - 1), 2);
 	setfreq_command[1] = div >> 0;
 	setfreq_command[2] = div >> 8;
-	write_dumpfile(1, setfreq_command, sizeof(setfreq_command));
+	write_dumpfile(1, setfreq_command, sizeof(setfreq_command), 0);
 #ifdef ASYNC_WRITE
 	if (ftdi_write_data_async(&u->ftdic, setfreq_command, sizeof(setfreq_command)) != sizeof(setfreq_command)) {
 #else
