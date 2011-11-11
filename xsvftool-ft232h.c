@@ -188,7 +188,7 @@ static void transfer_tms_job_handler(struct udata_s *u, struct read_job_s *job, 
 
 static void transfer_tms(struct udata_s *u, struct buffer_s *d, int tdi, int len)
 {
-	int i;
+	int i, rc;
 
 	unsigned char data_command[] = {
 		0x6e, len-1, tdi << 7, 0x87
@@ -203,11 +203,13 @@ static void transfer_tms(struct udata_s *u, struct buffer_s *d, int tdi, int len
 
 	write_dumpfile(1, data_command, sizeof(data_command), rj->command_id);
 #ifdef ASYNC_WRITE
-	if (ftdi_write_data_async(&u->ftdic, data_command, sizeof(data_command)) != sizeof(data_command)) {
+	rc = ftdi_write_data_async(&u->ftdic, data_command, sizeof(data_command));
 #else
-	if (ftdi_write_data(&u->ftdic, data_command, sizeof(data_command)) != sizeof(data_command)) {
+	rc = ftdi_write_data(&u->ftdic, data_command, sizeof(data_command));
 #endif
-		fprintf(stderr, "IO Error: Transfer tms write failed!\n");
+	if (rc != sizeof(data_command)) {
+		fprintf(stderr, "IO Error: Transfer tms write failed: %s (rc=%d/%d)\n",
+				ftdi_get_error_string(&u->ftdic), rc, (int)sizeof(data_command));
 		u->error_rc = -1;
 	}
 }
@@ -254,7 +256,7 @@ static void transfer_tdi(struct udata_s *u, struct buffer_s *d, int len)
 		data_len++;
 	}
 
-	int i, j, k;
+	int i, j, k, rc;
 	unsigned char command[command_len];
 
 	i = 0;
@@ -283,11 +285,13 @@ static void transfer_tdi(struct udata_s *u, struct buffer_s *d, int len)
 
 	write_dumpfile(1, command, command_len, rj->command_id);
 #ifdef ASYNC_WRITE
-	if (ftdi_write_data_async(&u->ftdic, command, command_len) != command_len) {
+	rc = ftdi_write_data_async(&u->ftdic, command, command_len);
 #else
-	if (ftdi_write_data(&u->ftdic, command, command_len) != command_len) {
+	rc = ftdi_write_data(&u->ftdic, command, command_len);
 #endif
-		fprintf(stderr, "IO Error: Transfer tdi write failed!\n");
+	if (rc != command_len) {
+		fprintf(stderr, "IO Error: Transfer tdi write failed: %s (rc=%d/%d)\n",
+				ftdi_get_error_string(&u->ftdic), rc, command_len);
 		u->error_rc = -1;
 	}
 }
@@ -539,7 +543,8 @@ found_device:;
 
 	write_dumpfile(1, init_commands_p, init_commands_sz, 0);
 	if (ftdi_write_data(&u->ftdic, init_commands_p, init_commands_sz) != init_commands_sz) {
-		fprintf(stderr, "IO Error: Interface setup failed (init commands).\n");
+		fprintf(stderr, "IO Error: Interface setup failed (init commands): %s\n",
+				ftdi_get_error_string(&u->ftdic));
 		ftdi_disable_bitbang(&u->ftdic);
 		ftdi_usb_close(&u->ftdic);
 		ftdi_deinit(&u->ftdic);
@@ -661,11 +666,13 @@ static int h_set_frequency(struct libxsvf_host *h, int v)
 	setfreq_command[2] = div >> 8;
 	write_dumpfile(1, setfreq_command, sizeof(setfreq_command), 0);
 #ifdef ASYNC_WRITE
-	if (ftdi_write_data_async(&u->ftdic, setfreq_command, sizeof(setfreq_command)) != sizeof(setfreq_command)) {
+	int rc = ftdi_write_data_async(&u->ftdic, setfreq_command, sizeof(setfreq_command));
 #else
-	if (ftdi_write_data(&u->ftdic, setfreq_command, sizeof(setfreq_command)) != sizeof(setfreq_command)) {
+	int rc = ftdi_write_data(&u->ftdic, setfreq_command, sizeof(setfreq_command));
 #endif
-		fprintf(stderr, "IO Error: Set frequency write failed!\n");
+	if (rc != sizeof(setfreq_command)) {
+		fprintf(stderr, "IO Error: Set frequency write failed: %s (rc=%d/%d)\n",
+				ftdi_get_error_string(&u->ftdic), rc, (int)sizeof(setfreq_command));
 		u->error_rc = -1;
 	}
 	return 0;
