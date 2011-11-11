@@ -43,9 +43,6 @@ help:
 	@echo "  $(MAKE) xsvftool-xpcu"
 	@echo "                .... build the library and xsvftool-xpcu"
 	@echo ""
-	@echo "  $(MAKE) xsvftool-bp"
-	@echo "                .... build the library and xsvftool-bp"
-	@echo ""
 	@echo "  $(MAKE) all"
 	@echo "                .... build the library and all examples"
 	@echo ""
@@ -53,10 +50,10 @@ help:
 	@echo "                .... install everything in /usr/local/"
 	@echo ""
 
-all: libxsvf.a xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
+all: libxsvf.a xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu
 
 install: all
-	install -Dt /usr/local/bin/ xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
+	install -Dt /usr/local/bin/ xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu
 	install -Dt /usr/local/include/ -m 644 libxsvf.h
 	install -Dt /usr/local/lib/ -m 644 libxsvf.a
 
@@ -77,11 +74,9 @@ xsvftool-xpcu: libxsvf.a xsvftool-xpcu.src/*.c xsvftool-xpcu.src/*.h \
 	$(MAKE) -C xsvftool-xpcu.src
 	cp xsvftool-xpcu.src/xsvftool-xpcu xsvftool-xpcu
 
-xsvftool-bp: libxsvf.a xsvftool-bp.o
-
 clean:
 	$(MAKE) -C xsvftool-xpcu.src clean
-	rm -f xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu xsvftool-bp
+	rm -f xsvftool-gpio xsvftool-ft2232h xsvftool-xpcu
 	rm -f libxsvf.a *.o *.d
 
 -include *.d
