@@ -467,17 +467,31 @@ static int h_setup(struct libxsvf_host *h)
 		goto found_device;
 	}
 
+	// 0x0403:0x6011 = Plain FTDI 4232H
+	if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6011) == 0) {
+		goto found_device;
+	}
+
+	// 0x0403:0x6014 = Plain FTDI 232H
+	if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6014) == 0) {
+		goto found_device;
+	}
+
 	fprintf(stderr, "IO Error: Interface setup failed (can't find or can't open device).\n");
 	ftdi_deinit(&u->ftdic);
 	return -1;
 found_device:;
 
-	if (u->ftdic.type != TYPE_2232H) {
+#if 0
+	// Older versions of libftdi don't have the TYPE_232H enum value.
+	// So we simply skip this check and let BITMODE_MPSSE below fail for non-H type chips.
+	if (u->ftdic.type != TYPE_232H && u->ftdic.type != TYPE_2232H && u->ftdic.type != TYPE_4232H) {
 		fprintf(stderr, "IO Error: Interface setup failed (wrong chip type).\n");
 		ftdi_usb_close(&u->ftdic);
 		ftdi_deinit(&u->ftdic);
 		return -1;
 	}
+#endif
 
 #if 1
 	if (ftdi_usb_reset(&u->ftdic) < 0) {
