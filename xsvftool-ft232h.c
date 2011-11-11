@@ -17,8 +17,8 @@
  *  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  *
- *  A JTAG SVF/XSVF Player based on libxsvf for the FTDI FT2232H USB Dual
- *  High Speed USB to Multipurpose UART/FIFO IC.
+ *  A JTAG SVF/XSVF Player based on libxsvf for the FTDI FT232H, FT2232H and
+ *  FT4232H High Speed USB to Multipurpose UART/FIFO ICs.
  *
  *  This also serves as an example program for using libxvsf with asynchonous
  *  hardware interfaces. Have a look at 'xsvftool-gpio.c' for a simple libxsvf
@@ -725,8 +725,8 @@ const char *progname;
 static void help()
 {
 	fprintf(stderr, "\n");
-	fprintf(stderr, "A JTAG SVF/XSVF Player based on libxsvf for the FTDI FT2232H USB Dual\n");
-	fprintf(stderr, "High Speed USB to Multipurpose UART/FIFO IC.\n");
+	fprintf(stderr, "A JTAG SVF/XSVF Player based on libxsvf for the FTDI FT232H, FT2232H and\n");
+	fprintf(stderr, "FT4232H High Speed USB to Multipurpose UART/FIFO ICs.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "xsvftool-ft2232h, part of Lib(X)SVF (http://www.clifford.at/libxsvf/).\n");
 	fprintf(stderr, "Copyright (C) 2009  RIEGL Research ForschungsGmbH\n");
@@ -770,7 +770,7 @@ int main(int argc, char **argv)
 	int hex_mode = 0;
 	int opt, i, j;
 
-	progname = argc >= 1 ? argv[0] : "xsvftool-ft2232h";
+	progname = argc >= 1 ? argv[0] : "xsvftool-ft232h";
 	while ((opt = getopt(argc, argv, "vd:LBSf:x:s:c")) != -1)
 	{
 		switch (opt)

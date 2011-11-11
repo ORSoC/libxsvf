@@ -332,7 +332,7 @@ an error is detected all further calls to pulse_tck() up to and including
 the next call of pulse_tck() with the 'sync' argument set or the next call to
 sync() or shutdown() must return -1.
 
-Have a look at the example program 'xsvftool-ft2232h.c' for a reference
+Have a look at the example program 'xsvftool-ft232h.c' for a reference
 implementation.
 
 
