@@ -81,6 +81,7 @@ struct buffer_s {
 struct udata_s {
 	FILE *f;
 	struct ftdi_context ftdic;
+	int buffer_size;
 	struct buffer_s buffer[BUFFER_SIZE];
 	struct read_job_s *job_fifo_out, *job_fifo_in;
 	int last_tms;
@@ -338,7 +339,7 @@ static void *reader_main(void *arg)
 		while (u->job_fifo_out) {
 			process_next_read_job(u);
 #ifdef INTERLACED_READ_WRITE
-			if (u->total_job_bits <= BUFFER_SIZE/2) {
+			if (u->total_job_bits <= u->buffer_size/2) {
 				pthread_mutex_lock(&u->writer_wait_flag_mutex);
 				int writer_is_waiting = u->writer_wait_flag;
 				pthread_mutex_unlock(&u->writer_wait_flag_mutex);
@@ -363,7 +364,7 @@ static void buffer_flush(struct udata_s *u)
 	u->writer_wait_flag = 1;
 	pthread_mutex_unlock(&u->writer_wait_flag_mutex);
 	pthread_mutex_lock(&u->read_write_mutex);
-	while (u->total_job_bits > BUFFER_SIZE/2) {
+	while (u->total_job_bits > u->buffer_size/2) {
 		pthread_cond_wait(&u->read_done_cond, &u->read_write_mutex);
 	}
 #  else
@@ -442,7 +443,7 @@ static void buffer_add(struct udata_s *u, int tms, int tdi, int tdo, int rmask)
 	u->buffer[u->buffer_i].rmask = rmask;
 	u->buffer_i++;
 
-	if (u->buffer_i >= BUFFER_SIZE)
+	if (u->buffer_i >= u->buffer_size)
 		buffer_flush(u);
 }
 
@@ -451,6 +452,8 @@ static int h_setup(struct libxsvf_host *h)
 	int device_is_amontec_jtagkey_2p = 0;
 
 	struct udata_s *u = h->user_data;
+	u->buffer_size = BUFFER_SIZE;
+
 	if (ftdi_init(&u->ftdic) < 0)
 		return -1;
 
@@ -478,6 +481,7 @@ static int h_setup(struct libxsvf_host *h)
 
 	// 0x0403:0x6014 = Plain FTDI 232H
 	if (ftdi_usb_open(&u->ftdic, 0x0403, 0x6014) == 0) {
+		u->buffer_size = 64;
 		goto found_device;
 	}
 
