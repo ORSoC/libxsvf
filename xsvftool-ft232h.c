@@ -92,6 +92,7 @@ struct udata_s {
 	int error_rc;
 	int verbose;
 	int syncmode;
+	int forcemode;
 	int frequency;
 #ifdef BACKGROUND_READ
 #  ifdef INTERLACED_READ_WRITE
@@ -225,7 +226,8 @@ static void transfer_tdi_job_handler(struct udata_s *u, struct read_job_s *job, 
 		for (k=0; k<8; k++, i++) {
 			int line_tdo = (data[j] & (1 << k)) != 0 ? 1 : 0;
 			if (job->buffer[i].tdo_enable && job->buffer[i].tdo != line_tdo)
-				u->error_rc = -1;
+				if (!u->forcemode)
+					u->error_rc = -1;
 			if (job->buffer[j*8+k].rmask && u->retval_i < 256)
 				u->retval[u->retval_i++] = line_tdo;
 		}
@@ -234,7 +236,8 @@ static void transfer_tdi_job_handler(struct udata_s *u, struct read_job_s *job, 
 		int bitpos = j + (8 - bits);
 		int line_tdo = (data[bytes] & (1 << bitpos)) != 0 ? 1 : 0;
 		if (job->buffer[i].tdo_enable && job->buffer[i].tdo != line_tdo)
-			u->error_rc = -1;
+			if (!u->forcemode)
+				u->error_rc = -1;
 		if (job->buffer[i].rmask && u->retval_i < 256)
 			u->retval[u->retval_i++] = line_tdo;
 		u->last_tdo = line_tdo;
@@ -744,8 +747,8 @@ static void help()
 	fprintf(stderr, "Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>\n");
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -S ] [ -f freq[k|M] ] \\\n", progname);
-	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
+	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -S ] [ -F ] \\\n", progname);
+	fprintf(stderr, "      %*s [ -f freq[k|M] ] { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -v\n");
 	fprintf(stderr, "          Enable verbose output (repeat for incrased verbosity)\n");
@@ -758,6 +761,9 @@ static void help()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -S\n");
 	fprintf(stderr, "          Run in synchronous mode (slow but report errors right away)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -F\n");
+	fprintf(stderr, "          Force mode (ignore all TDO mismatches)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -f freq[k|M]\n");
 	fprintf(stderr, "          Set maximum frequency in Hz, kHz or MHz\n");
@@ -782,7 +788,7 @@ int main(int argc, char **argv)
 	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-ft232h";
-	while ((opt = getopt(argc, argv, "vd:LBSf:x:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "vd:LBSFf:x:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -859,6 +865,9 @@ int main(int argc, char **argv)
 			if (u.frequency == 0)
 				u.frequency = 10000;
 			u.syncmode = 1;
+			break;
+		case 'F':
+			u.forcemode = 1;
 			break;
 		default:
 			help();
