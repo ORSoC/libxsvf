@@ -28,8 +28,8 @@
  *  to build this program.
  *
  *  To run it at full speed you need a version of libftdi that has been
- *  compiled with '--with-async-mode', and must uncomment all three
- *  defines ASYNC_WRITE, BACKGROUND_READ and INTERLACED_READ_WRITE below.
+ *  compiled with '--with-async-mode', and must enable all four defines
+ *  BLOCK_WRITE, ASYNC_WRITE, BACKGROUND_READ and INTERLACED_READ_WRITE below.
  *
  *  [1] http://www.intra2net.com/en/developer/libftdi/
  */
@@ -38,6 +38,7 @@
 
 #define BUFFER_SIZE (1024*16)
 
+#define BLOCK_WRITE
 // #define ASYNC_WRITE
 // #define BACKGROUND_READ
 // #define INTERLACED_READ_WRITE
@@ -106,6 +107,10 @@ struct udata_s {
 	pthread_cond_t read_done_cond;
 	pthread_t read_thread;
 #endif
+#ifdef BLOCK_WRITE
+	int ftdibuf_len;
+	unsigned char ftdibuf[4096];
+#endif
 };
 
 static FILE *dumpfile = NULL;
@@ -144,6 +149,62 @@ static int my_ftdi_read_data(struct ftdi_context *ftdi, unsigned char *buf, int 
 	}
 	write_dumpfile(0, buf, pos, command_id);
 	return pos;
+}
+
+static int my_ftdi_write_data(struct udata_s *u, unsigned char *buf, int size, int sync)
+{
+#ifdef BLOCK_WRITE
+	int rc, total_queued = 0;
+
+	sync = 1;
+
+	while (size > 0)
+	{
+		if (u->ftdibuf_len == 4096) {
+			if (dumpfile)
+				fprintf(dumpfile, "WRITE %d BYTES (buffer full)\n", u->ftdibuf_len);
+#ifdef ASYNC_WRITE
+			rc = ftdi_write_data_async(&u->ftdic, u->ftdibuf, u->ftdibuf_len);
+#else
+			rc = ftdi_write_data(&u->ftdic, u->ftdibuf, u->ftdibuf_len);
+#endif
+			if (rc != u->ftdibuf_len)
+				return -1;
+			u->ftdibuf_len = 0;
+		}
+
+		int chunksize = 4096 - u->ftdibuf_len;
+		if (chunksize > size)
+			chunksize = size;
+
+		memcpy(u->ftdibuf + u->ftdibuf_len, buf, chunksize);
+		u->ftdibuf_len += chunksize;
+		total_queued += chunksize;
+		size -= chunksize;
+		buf += chunksize;
+	}
+
+	if (sync && u->ftdibuf_len > 0) {
+		if (dumpfile)
+			fprintf(dumpfile, "WRITE %d BYTES (sync)\n", u->ftdibuf_len);
+#ifdef ASYNC_WRITE
+		rc = ftdi_write_data_async(&u->ftdic, u->ftdibuf, u->ftdibuf_len);
+#else
+		rc = ftdi_write_data(&u->ftdic, u->ftdibuf, u->ftdibuf_len);
+#endif
+		if (rc != u->ftdibuf_len)
+			return -1;
+		u->ftdibuf_len = 0;
+	}
+
+	return total_queued;
+#else
+#  ifdef ASYNC_WRITE
+	return ftdi_write_data_async(&u->ftdic, buf, size);
+#  else
+	return ftdi_write_data(&u->ftdic, buf, size);
+#  endif
+#endif
 }
 
 static struct read_job_s *new_read_job(struct udata_s *u, int data_len, int bits_len, struct buffer_s *buffer, job_handler_t *handler)
@@ -204,11 +265,7 @@ static void transfer_tms(struct udata_s *u, struct buffer_s *d, int tdi, int len
 	struct read_job_s *rj = new_read_job(u, 1, len, d, &transfer_tms_job_handler);
 
 	write_dumpfile(1, data_command, sizeof(data_command), rj->command_id);
-#ifdef ASYNC_WRITE
-	rc = ftdi_write_data_async(&u->ftdic, data_command, sizeof(data_command));
-#else
-	rc = ftdi_write_data(&u->ftdic, data_command, sizeof(data_command));
-#endif
+	rc = my_ftdi_write_data(u, data_command, sizeof(data_command), 0);
 	if (rc != sizeof(data_command)) {
 		fprintf(stderr, "IO Error: Transfer tms write failed: %s (rc=%d/%d)\n",
 				ftdi_get_error_string(&u->ftdic), rc, (int)sizeof(data_command));
@@ -288,11 +345,7 @@ static void transfer_tdi(struct udata_s *u, struct buffer_s *d, int len)
 	struct read_job_s *rj = new_read_job(u, data_len, len, d, &transfer_tdi_job_handler);
 
 	write_dumpfile(1, command, command_len, rj->command_id);
-#ifdef ASYNC_WRITE
-	rc = ftdi_write_data_async(&u->ftdic, command, command_len);
-#else
-	rc = ftdi_write_data(&u->ftdic, command, command_len);
-#endif
+	rc = my_ftdi_write_data(u, command, command_len, 0);
 	if (rc != command_len) {
 		fprintf(stderr, "IO Error: Transfer tdi write failed: %s (rc=%d/%d)\n",
 				ftdi_get_error_string(&u->ftdic), rc, command_len);
@@ -410,6 +463,15 @@ static void buffer_flush(struct udata_s *u)
 	}
 	u->buffer_i = 0;
 
+#ifdef BLOCK_WRITE
+	int rc = my_ftdi_write_data(u, NULL, 0, 1);
+	if (rc != 0) {
+		fprintf(stderr, "IO Error: Ftdi write failed: %s\n",
+				ftdi_get_error_string(&u->ftdic));
+		u->error_rc = -1;
+	}
+#endif
+
 #ifdef BACKGROUND_READ
 #  ifdef INTERLACED_READ_WRITE
 	pthread_mutex_lock(&u->writer_wait_flag_mutex);
@@ -456,6 +518,9 @@ static int h_setup(struct libxsvf_host *h)
 
 	struct udata_s *u = h->user_data;
 	u->buffer_size = BUFFER_SIZE;
+#ifdef BLOCK_WRITE
+	u->ftdibuf_len = 0;
+#endif
 
 	if (ftdi_init(&u->ftdic) < 0)
 		return -1;
@@ -672,11 +737,7 @@ static int h_set_frequency(struct libxsvf_host *h, int v)
 	setfreq_command[1] = div >> 0;
 	setfreq_command[2] = div >> 8;
 	write_dumpfile(1, setfreq_command, sizeof(setfreq_command), 0);
-#ifdef ASYNC_WRITE
-	int rc = ftdi_write_data_async(&u->ftdic, setfreq_command, sizeof(setfreq_command));
-#else
-	int rc = ftdi_write_data(&u->ftdic, setfreq_command, sizeof(setfreq_command));
-#endif
+	int rc = my_ftdi_write_data(u, setfreq_command, sizeof(setfreq_command), 1);
 	if (rc != sizeof(setfreq_command)) {
 		fprintf(stderr, "IO Error: Set frequency write failed: %s (rc=%d/%d)\n",
 				ftdi_get_error_string(&u->ftdic), rc, (int)sizeof(setfreq_command));
