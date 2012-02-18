@@ -8,6 +8,16 @@ http://svn.clifford.at/libxsvf/trunk/
 You also might want to have a look at the project homepage:
 http://www.clifford.at/libxsvf/
 
+In papers and reports, please refer to Lib(X)SVF as follows: "Clifford Wolf,
+Lib(X)SVF: A library for implementing SVF and XSVF JTAG players.
+http://www.clifford.at/libxsvf/", e.g. using the following BibTeX code:
+
+@MISC{LibXSVF,
+  author = {Clifford Wolf},
+  title = {Lib(X)SVF: A library for implementing SVF and XSVF JTAG players},
+  howpublished = "\url{http://www.clifford.at/libxsvf/}"
+}
+
 Please send bug reports and fixes to <clifford@clifford.at>.
 
 
