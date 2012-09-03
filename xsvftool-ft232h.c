@@ -856,16 +856,16 @@ static void help()
 	fprintf(stderr, "          Select device using USB vendor and product id\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -C channel\n");
-	fprintf(stderr, "          Select channel on target device (1, 2, 3 or 4)\n");
+	fprintf(stderr, "          Select channel on target device (A, B, C or D)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -Z eeprom-size\n");
-	fprintf(stderr, "          Set size of the EEPROM\n");
+	fprintf(stderr, "          Set size of the FTDI EEPROM\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -W eeprom-filename\n");
-	fprintf(stderr, "          Write content of the given file to the EEPROM\n");
+	fprintf(stderr, "          Write content of the given file to the FTDI EEPROM\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -R eeprom-filename\n");
-	fprintf(stderr, "          Write content of the EEPROM to the given file\n");
+	fprintf(stderr, "          Write content of the FTDI EEPROM to the given file\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -s svf-file\n");
 	fprintf(stderr, "          Play the specified SVF file\n");
@@ -936,12 +936,19 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 'C':
-			{
-				char *endptr = NULL;
-				u.device_channel = strtol(optarg, &endptr, 0);
-				if (!endptr || *endptr != 0)
-					help();
-			}
+			if (!strcmp(optarg, "A"))
+				u.device_channel = 1;
+			else
+			if (!strcmp(optarg, "B"))
+				u.device_channel = 2;
+			else
+			if (!strcmp(optarg, "C"))
+				u.device_channel = 3;
+			else
+			if (!strcmp(optarg, "D"))
+				u.device_channel = 4;
+			else
+				help();
 			break;
 		case 'Z':
 			{
