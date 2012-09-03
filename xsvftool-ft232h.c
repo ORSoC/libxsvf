@@ -82,6 +82,10 @@ struct buffer_s {
 struct udata_s {
 	FILE *f;
 	struct ftdi_context ftdic;
+	uint16_t device_vendor;
+	uint16_t device_product;
+	int device_channel;
+	int eeprom_size;
 	int buffer_size;
 	struct buffer_s buffer[BUFFER_SIZE];
 	struct read_job_s *job_fifo_out, *job_fifo_in;
@@ -524,11 +528,27 @@ static int h_setup(struct libxsvf_host *h)
 
 	if (ftdi_init(&u->ftdic) < 0)
 		return -1;
+	
+	if (u->eeprom_size > 0)
+		u->ftdic.eeprom_size = u->eeprom_size;
 
-	if (ftdi_set_interface(&u->ftdic, INTERFACE_A) < 0) {
-		fprintf(stderr, "IO Error: Interface setup failed (set port).\n");
-		ftdi_deinit(&u->ftdic);
-		return -1;
+	if (u->device_channel > 0) {
+		enum ftdi_interface interface =
+			u->device_channel == 1 ? INTERFACE_A :
+			u->device_channel == 2 ? INTERFACE_B :
+			u->device_channel == 3 ? INTERFACE_C :
+			u->device_channel == 4 ? INTERFACE_D : INTERFACE_ANY;
+		if (ftdi_set_interface(&u->ftdic, interface) < 0) {
+			fprintf(stderr, "IO Error: Interface setup failed (set port).\n");
+			ftdi_deinit(&u->ftdic);
+			return -1;
+		}
+	}
+
+	if (u->device_vendor > 0 || u->device_product > 0) {
+		if (ftdi_usb_open(&u->ftdic, u->device_vendor, u->device_product) == 0)
+			goto found_device;
+		goto failed_device;
 	}
 
 	// 0x0403:0xcff8 = Amontec JTAGkey2P
@@ -553,6 +573,7 @@ static int h_setup(struct libxsvf_host *h)
 		goto found_device;
 	}
 
+failed_device:
 	fprintf(stderr, "IO Error: Interface setup failed (can't find or can't open device).\n");
 	ftdi_deinit(&u->ftdic);
 	return -1;
@@ -809,7 +830,9 @@ static void help()
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -S ] [ -F ] \\\n", progname);
-	fprintf(stderr, "      %*s [ -f freq[k|M] ] { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
+	fprintf(stderr, "      %*s [ -D vendor:product ] [ -C channel ] [ -f freq[k|M] ] \\n", (int)(strlen(progname)+1), "");
+	fprintf(stderr, "      %*s [ -Z eeprom-size] [ -W eeprom-filename ] [ -R eeprom-filename ] \\\n", (int)(strlen(progname)+1), "");
+	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -v\n");
 	fprintf(stderr, "          Enable verbose output (repeat for incrased verbosity)\n");
@@ -828,6 +851,21 @@ static void help()
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -f freq[k|M]\n");
 	fprintf(stderr, "          Set maximum frequency in Hz, kHz or MHz\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -D vendor:product\n");
+	fprintf(stderr, "          Select device using USB vendor and product id\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -C channel\n");
+	fprintf(stderr, "          Select channel on target device (1, 2, 3 or 4)\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -Z eeprom-size\n");
+	fprintf(stderr, "          Set size of the EEPROM\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -W eeprom-filename\n");
+	fprintf(stderr, "          Write content of the given file to the EEPROM\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "   -R eeprom-filename\n");
+	fprintf(stderr, "          Write content of the EEPROM to the given file\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -s svf-file\n");
 	fprintf(stderr, "          Play the specified SVF file\n");
@@ -849,7 +887,7 @@ int main(int argc, char **argv)
 	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-ft232h";
-	while ((opt = getopt(argc, argv, "vd:LBSFf:x:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "vd:LBSFD:C:Z:W:R:f:x:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -884,6 +922,88 @@ int main(int argc, char **argv)
 					continue;
 				}
 				help();
+			}
+			break;
+		case 'D':
+			{
+				char *endptr = NULL;
+				u.device_vendor = strtol(optarg, &endptr, 16);
+				if (!endptr || *endptr != ':')
+					help();
+				u.device_product = strtol(endptr, &endptr, 16);
+				if (!endptr || *endptr != 0)
+					help();
+			}
+			break;
+		case 'C':
+			{
+				char *endptr = NULL;
+				u.device_channel = strtol(optarg, &endptr, 0);
+				if (!endptr || *endptr != 0)
+					help();
+			}
+			break;
+		case 'Z':
+			{
+				char *endptr = NULL;
+				u.eeprom_size = strtol(optarg, &endptr, 0);
+				if (!endptr || *endptr != 0)
+					help();
+			}
+			break;
+		case 'W':
+			{
+				gotaction = 1;
+				if (h_setup(&h) < 0)
+					return 1;
+				unsigned char eeprom_data[u.ftdic.eeprom_size];
+
+				FILE *f = fopen(optarg, "r");
+				if (f == NULL) {
+					fprintf(stderr, "Can't open EEPROM file `%s' for reading: %s\n", optarg, strerror(errno));
+					h_shutdown(&h);
+					return 1;
+				}
+				if (fread(eeprom_data, u.ftdic.eeprom_size, 1, f) != 1) {
+					fprintf(stderr, "Can't read EEPROM file `%s': %s\n", optarg, strerror(errno));
+					h_shutdown(&h);
+					return 1;
+				}
+				fclose(f);
+
+				if (ftdi_write_eeprom(&u.ftdic, eeprom_data) < 0) {
+					fprintf(stderr, "Writing EEPROM data failed! (size=%d)\n", u.ftdic.eeprom_size);
+					h_shutdown(&h);
+					return 1;
+				}
+				if (h_shutdown(&h) < 0)
+					return 1;
+			}
+			break;
+		case 'R':
+			{
+				gotaction = 1;
+				if (h_setup(&h) < 0)
+					return 1;
+				unsigned char eeprom_data[u.ftdic.eeprom_size];
+				if (ftdi_read_eeprom(&u.ftdic, eeprom_data) < 0) {
+					fprintf(stderr, "Reading EEPROM data failed! (size=%d)\n", u.ftdic.eeprom_size);
+					h_shutdown(&h);
+					return 1;
+				}
+				if (h_shutdown(&h) < 0)
+					return 1;
+
+				FILE *f = fopen(optarg, "w");
+				if (f == NULL) {
+					fprintf(stderr, "Can't open EEPROM file `%s' for writing: %s\n", optarg, strerror(errno));
+					return 1;
+				}
+				if (fwrite(eeprom_data, u.ftdic.eeprom_size, 1, f) != 1) {
+					fprintf(stderr, "Can't write EEPROM file `%s': %s\n", optarg, strerror(errno));
+					return 1;
+				}
+				fclose(f);
 			}
 			break;
 		case 'x':
