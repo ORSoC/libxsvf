@@ -816,6 +816,20 @@ static struct libxsvf_host h = {
 	.user_data = &u
 };
 
+static uint16_t eeprom_checksum(unsigned char *data, int len)
+{
+	uint16_t checksum = 0xAAAA;
+	int i;
+
+	for (i = 0; i < len; i+=2) {
+		uint16_t value = (data[i+1] << 8) | data[i];
+		checksum = value ^ checksum;
+		checksum = (checksum << 1) | (checksum >> 15);
+	}
+
+	return checksum;
+}
+
 const char *progname;
 
 static void help()
@@ -830,8 +844,8 @@ static void help()
 	fprintf(stderr, "Lib(X)SVF is free software licensed under the ISC license.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Usage: %s [ -v[v..] ] [ -d dumpfile ] [ -L | -B ] [ -S ] [ -F ] \\\n", progname);
-	fprintf(stderr, "      %*s [ -D vendor:product ] [ -C channel ] [ -f freq[k|M] ] \\n", (int)(strlen(progname)+1), "");
-	fprintf(stderr, "      %*s [ -Z eeprom-size] [ -W eeprom-filename ] [ -R eeprom-filename ] \\\n", (int)(strlen(progname)+1), "");
+	fprintf(stderr, "      %*s [ -D vendor:product ] [ -C channel ] [ -f freq[k|M] ] \\\n", (int)(strlen(progname)+1), "");
+	fprintf(stderr, "      %*s [ -Z eeprom-size] [ [-G] -W eeprom-filename ] [ -R eeprom-filename ] \\\n", (int)(strlen(progname)+1), "");
 	fprintf(stderr, "      %*s { -s svf-file | -x xsvf-file | -c } ...\n", (int)(strlen(progname)+1), "");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "   -v\n");
@@ -861,6 +875,9 @@ static void help()
 	fprintf(stderr, "   -Z eeprom-size\n");
 	fprintf(stderr, "          Set size of the FTDI EEPROM\n");
 	fprintf(stderr, "\n");
+	fprintf(stderr, "   -G\n");
+	fprintf(stderr, "          Generate checksum before writing EEPROM data\n");
+	fprintf(stderr, "\n");
 	fprintf(stderr, "   -W eeprom-filename\n");
 	fprintf(stderr, "          Write content of the given file to the FTDI EEPROM\n");
 	fprintf(stderr, "\n");
@@ -883,11 +900,12 @@ int main(int argc, char **argv)
 {
 	int rc = 0;
 	int gotaction = 0;
+	int genchecksum = 0;
 	int hex_mode = 0;
 	int opt, i, j;
 
 	progname = argc >= 1 ? argv[0] : "xsvftool-ft232h";
-	while ((opt = getopt(argc, argv, "vd:LBSFD:C:Z:W:R:f:x:s:c")) != -1)
+	while ((opt = getopt(argc, argv, "vd:LBSFD:C:Z:GW:R:f:x:s:c")) != -1)
 	{
 		switch (opt)
 		{
@@ -958,6 +976,9 @@ int main(int argc, char **argv)
 					help();
 			}
 			break;
+		case 'G':
+			genchecksum = 1;
+			break;
 		case 'W':
 			{
 				gotaction = 1;
@@ -978,6 +999,20 @@ int main(int argc, char **argv)
 				}
 				fclose(f);
 
+				uint16_t checksum = eeprom_checksum(eeprom_data, u.ftdic.eeprom_size-2);
+				if (genchecksum) {
+					eeprom_data[u.ftdic.eeprom_size-1] = checksum >> 8;
+					eeprom_data[u.ftdic.eeprom_size-2] = checksum;
+				}
+
+				uint16_t checksum_chip = (eeprom_data[u.ftdic.eeprom_size-1] << 8) | eeprom_data[u.ftdic.eeprom_size-2];
+				if (checksum != checksum_chip) {
+					fprintf(stderr, "ERROR: Checksum from EEPROM data is invalid! (is 0x%04x instead of 0x%04x)\n",
+							checksum_chip, checksum);
+					h_shutdown(&h);
+					return 1;
+				}
+
 				if (ftdi_write_eeprom(&u.ftdic, eeprom_data) < 0) {
 					fprintf(stderr, "Writing EEPROM data failed! (size=%d)\n", u.ftdic.eeprom_size);
 					h_shutdown(&h);
@@ -992,7 +1027,8 @@ int main(int argc, char **argv)
 				gotaction = 1;
 				if (h_setup(&h) < 0)
 					return 1;
-				unsigned char eeprom_data[u.ftdic.eeprom_size];
+				int eeprom_size = u.ftdic.eeprom_size;
+				unsigned char eeprom_data[eeprom_size];
 				if (ftdi_read_eeprom(&u.ftdic, eeprom_data) < 0) {
 					fprintf(stderr, "Reading EEPROM data failed! (size=%d)\n", u.ftdic.eeprom_size);
 					h_shutdown(&h);
@@ -1006,11 +1042,17 @@ int main(int argc, char **argv)
 					fprintf(stderr, "Can't open EEPROM file `%s' for writing: %s\n", optarg, strerror(errno));
 					return 1;
 				}
-				if (fwrite(eeprom_data, u.ftdic.eeprom_size, 1, f) != 1) {
+				if (fwrite(eeprom_data, eeprom_size, 1, f) != 1) {
 					fprintf(stderr, "Can't write EEPROM file `%s': %s\n", optarg, strerror(errno));
 					return 1;
 				}
 				fclose(f);
+
+				uint16_t checksum = eeprom_checksum(eeprom_data, eeprom_size-2);
+				uint16_t checksum_chip = (eeprom_data[eeprom_size-1] << 8) | eeprom_data[eeprom_size-2];
+				if (checksum != checksum_chip)
+					fprintf(stderr, "WARNING: Checksum from EEPROM data is invalid! (is 0x%04x instead of 0x%04x)\n",
+							checksum_chip, checksum);
 			}
 			break;
 		case 'x':
