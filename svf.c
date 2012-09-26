@@ -530,6 +530,8 @@ int libxsvf_svf(struct libxsvf_host *h)
 					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0, 0);
 				}
 			}
+			if (libxsvf_tap_walk(h, state_endrun) < 0)
+				goto error;
 			goto eol_check;
 		}
 
