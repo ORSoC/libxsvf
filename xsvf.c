@@ -278,7 +278,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			STATUS(XSDR);
 			READ_BITS(buf_tdi_data, state_dr_size);
 			SHIFT_DATA(buf_tdi_data, buf_tdo_data, buf_tdo_mask, state_dr_size, LIBXSVF_TAP_DRSHIFT,
-					state_xendir ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE,
+					state_xenddr ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE,
 					state_runtest, state_retries);
 			break;
 		  }
@@ -311,7 +311,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			READ_BITS(buf_tdi_data, state_dr_size);
 			READ_BITS(buf_tdo_data, state_dr_size);
 			SHIFT_DATA(buf_tdi_data, buf_tdo_data, buf_tdo_mask, state_dr_size, LIBXSVF_TAP_DRSHIFT,
-					state_xendir ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE,
+					state_xenddr ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE,
 					state_runtest, state_retries);
 			break;
 		  }
@@ -330,7 +330,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			int num = READ_BYTE();
 			while (1) {
 				SHIFT_DATA(buf_tdi_data, buf_tdo_data, buf_tdo_mask, state_dr_size, LIBXSVF_TAP_DRSHIFT,
-						state_xendir ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE,
+						state_xenddr ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE,
 						state_runtest, state_retries);
 				if (num-- <= 0)
 					break;
@@ -372,7 +372,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			STATUS(XSDRE);
 			READ_BITS(buf_tdi_data, state_dr_size);
 			SHIFT_DATA(buf_tdi_data, (void*)0, (void*)0, state_dr_size, LIBXSVF_TAP_DRSHIFT,
-					state_xendir ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE, 0, 0);
+					state_xenddr ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE, 0, 0);
 			break;
 		  }
 		case XSDRTDOB: {
@@ -394,7 +394,7 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			READ_BITS(buf_tdi_data, state_dr_size);
 			READ_BITS(buf_tdo_data, state_dr_size);
 			SHIFT_DATA(buf_tdi_data, buf_tdo_data, (void*)0, state_dr_size, LIBXSVF_TAP_DRSHIFT,
-					state_xendir ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE, 0, 0);
+					state_xenddr ? LIBXSVF_TAP_DRPAUSE : LIBXSVF_TAP_IDLE, 0, 0);
 			break;
 		  }
 		case XSTATE: {
