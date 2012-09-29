@@ -522,13 +522,8 @@ int libxsvf_svf(struct libxsvf_host *h)
 					LIBXSVF_HOST_PULSE_SCK();
 				}
 			}
-			if (min_time >= 0) {
-				LIBXSVF_HOST_UDELAY(min_time, 0, tck_count >= 0 ? tck_count : 0);
-			}
-			else if (tck_count >= 0) {
-				for (i=0; i < tck_count; i++) {
-					LIBXSVF_HOST_PULSE_TCK(0, -1, -1, 0, 0);
-				}
+			if (min_time >= 0 || tck_count >= 0) {
+				LIBXSVF_HOST_UDELAY(min_time >= 0 ? min_time : 0, 0, tck_count >= 0 ? tck_count : 0);
 			}
 			if (libxsvf_tap_walk(h, state_endrun) < 0)
 				goto error;

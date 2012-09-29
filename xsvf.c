@@ -246,10 +246,12 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 	unsigned char state_xendir = 0;
 	unsigned char state_xenddr = 0;
 	unsigned char state_retries = 0;
+	unsigned char cmd = 0;
 
 	while (1)
 	{
-		unsigned char cmd = LIBXSVF_HOST_GETBYTE();
+		unsigned char last_cmd = cmd;
+		cmd = LIBXSVF_HOST_GETBYTE();
 
 #define STATUS(_c) LIBXSVF_HOST_REPORT_STATUS("XSVF Command " #_c);
 
@@ -399,6 +401,10 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 		  }
 		case XSTATE: {
 			STATUS(XSTATE);
+			if (state_runtest && last_cmd == XRUNTEST) {
+				TAP(LIBXSVF_TAP_IDLE);
+				LIBXSVF_HOST_UDELAY(state_runtest, 0, state_runtest);
+			}
 			unsigned char state = READ_BYTE();
 			TAP(xilinx_tap(state));
 			break;
