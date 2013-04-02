@@ -18,7 +18,7 @@
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-. /opt/Xilinx/13.1/ISE_DS/settings32.sh
+. /opt/Xilinx/14.2/ISE_DS/settings64.sh
 
 cat > hardware.prj <<- EOT
         verilog work "hardware.v"

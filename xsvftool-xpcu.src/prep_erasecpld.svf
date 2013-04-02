@@ -1,4 +1,4 @@
-// Created using Xilinx Cse Software [ISE - 13.1]
+// Created using Xilinx Cse Software [ISE - 14.2]
 
 TRST OFF;
 ENDIR IDLE;
