@@ -948,7 +948,7 @@ int main(int argc, char **argv)
 				u.device_vendor = strtol(optarg, &endptr, 16);
 				if (!endptr || *endptr != ':')
 					help();
-				u.device_product = strtol(endptr, &endptr, 16);
+				u.device_product = strtol(endptr+1, &endptr, 16);
 				if (!endptr || *endptr != 0)
 					help();
 			}
