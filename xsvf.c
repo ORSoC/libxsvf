@@ -43,7 +43,10 @@ enum xsvf_cmd {
 	XENDDR          = 0x14,
 	XSIR2           = 0x15,
 	XCOMMENT        = 0x16,
-	XWAIT           = 0x17
+	XWAIT           = 0x17,
+	/* Extensions used in svf2xsvf.py */
+	XWAITSTATE      = 0x18,
+	XTRST           = 0x1c
 };
 
 // This is to not confuse the VIM syntax highlighting
@@ -438,7 +441,8 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			} while (this_byte);
 			break;
 		  }
-		case XWAIT: {
+		case XWAIT:
+		case XWAITSTATE: {
 			STATUS(XWAIT);
 			unsigned char state1 = READ_BYTE();
 			unsigned char state2 = READ_BYTE();
@@ -446,8 +450,16 @@ int libxsvf_xsvf(struct libxsvf_host *h)
 			TAP(xilinx_tap(state1));
 			LIBXSVF_HOST_UDELAY(usecs, 0, 0);
 			TAP(xilinx_tap(state2));
+			if (cmd==XWAITSTATE) {
+				READ_LONG();   /* XWAITSTATE has count, time arguments */
+			}
 			break;
 		  }
+		case XTRST: {
+			STATUS(XTRST);
+			READ_BYTE();  /* enum: ON, OFF, Z, ABSENT */
+			break;
+		}
 		default:
 			LIBXSVF_HOST_REPORT_ERROR("Unknown XSVF command.");
 			goto error;
